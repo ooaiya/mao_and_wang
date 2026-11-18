@@ -1,0 +1,10 @@
+{
+  "original_native_targets": 60,
+  "original_registered_host_tests_passed": 29,
+  "shared_tests_passed": 14,
+  "original_output_verification": "3 workloads and corrupt-result negative control PASS; tiny inputs only",
+  "entry_inspections": 3,
+  "python_syntax_files": 228,
+  "target_VM_freezer_qualification": "PENDING; new kernel capability evidenced by user report, cloud cgroup read-only",
+  "formal_pressure_experiment": "NOT RUN"
+}

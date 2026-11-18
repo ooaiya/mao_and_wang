@@ -1,0 +1,14 @@
+{
+  "schema": "oomlab-live-budget-v1",
+  "unit": "bytes",
+  "memtotal_source": "/proc/meminfo:MemTotal * 1024",
+  "risk_reserve_fraction": 0.08,
+  "error_margin_fraction": 0.004,
+  "foreground_guard_fraction": 0.032,
+  "reactive_critical_fraction": 0.084,
+  "reactive_pressure_fraction": 0.112,
+  "reactive_warning_fraction": 0.144,
+  "reactive_recover_fraction": 0.16,
+  "reactive_progress_guard_fraction": 0.024,
+  "task_priorities": {"xz": 100, "table": 100, "array": 100}
+}

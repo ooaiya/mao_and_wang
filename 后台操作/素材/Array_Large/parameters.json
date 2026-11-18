@@ -1,0 +1,19 @@
+{
+  "schema": "oom-array-input-v1",
+  "operation": "array_processing",
+  "algorithm": "resident-f64-pcg64-v1",
+  "rng": "PCG64/SeedSequence([seed,array_index])",
+  "parameters": {
+    "elements": 90000000,
+    "dtype": "float64",
+    "arrays": 3,
+    "chunk_elements": 1000000,
+    "seed": 20261026
+  },
+  "shape": [
+    90000000
+  ],
+  "dtype": "float64",
+  "seed": 20261026,
+  "arrays": 3
+}

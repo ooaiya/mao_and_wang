@@ -1,0 +1,91 @@
+{
+  "schema_version": 4,
+  "status": "INITIAL_DEPLOYMENT_PROVISIONAL_HOMEPAGE_CALIBRATION_REQUIRED",
+  "T0_event": "homepage_ready",
+  "T0_definition": "Krita main homepage visibly loaded and interactive; auto read-only AT-SPI evidence or explicit homepage-ready confirmation. Never process start, first input, or import trigger.",
+  "data_version_sha256": "4f44014647a3909e849381d356962fe736cb5c853e467d05af4298cf1fec796d",
+  "samples": {
+    "foreground_krita": 1,
+    "xz": 3,
+    "table": 10,
+    "array": 9
+  },
+  "array_excluded_run": "9d3859de4be24a28936d0cc6287f38ec",
+  "array_exclusion_basis": "explicit user instruction in this session; retain 10-round sensitivity",
+  "historical_import_origin_monotonic_ns": 16060032185522,
+  "historical_homepage_ready_monotonic_ns": null,
+  "historical_homepage_to_import_inferred_bounds_s": [
+    41.73512822,
+    125.322433597
+  ],
+  "planning_homepage_to_import_bounds_s": [
+    41.73512822,
+    125.322433597
+  ],
+  "historical_homepage_to_import_assumption_s": 83.5287809085,
+  "homepage_to_import_calibration_override_s": null,
+  "homepage_bracket_assumption": "homepage readiness is after process creation and before the manually marked completed blank canvas; bracket is inferred, not measured",
+  "runtime_gui_input_correlation": "deferred by user for initial deployment; operator import-start marker recorded but does not reschedule backgrounds",
+  "schedule": [
+    {
+      "operation": "foreground_krita",
+      "type": "foreground",
+      "start_offset_s": 0.0
+    },
+    {
+      "operation": "xz",
+      "type": "background",
+      "start_offset_s": 479.3
+    },
+    {
+      "operation": "table",
+      "type": "background",
+      "start_offset_s": 1212.2
+    },
+    {
+      "operation": "array",
+      "type": "background",
+      "start_offset_s": 1215.35
+    }
+  ],
+  "reference_peak_target_from_homepage_s": 1218.0999999999976,
+  "reference_four_task_charge_lower_over_homepage_bracket_bytes": 19930713011.96138,
+  "four_mean_curves_95pct_overlap_reference_s": 0.5999999999994543,
+  "four_mean_curves_95pct_intervals_homepage_s": [
+    [
+      1217.799999999998,
+      1218.3999999999974
+    ]
+  ],
+  "round_combinations_validated": 270,
+  "round_combinations_all_four_95pct_at_Table_peak": 270,
+  "historical_VM_MemTotal_bytes": 16719261696,
+  "current_VM_MemTotal_bytes": null,
+  "system_idle_without_tasks_bytes": null,
+  "absolute_130pct_achieved": null,
+  "memory_scope": "same-time independent task cgroup charge reference; not actual concurrent physical memory. System idle/prepared initial charges must be added once, swap separately.",
+  "optimization": "50ms grid; place every measured Table peak time inside the common per-round XZ/Array >=95% platforms and Krita >=95% plateau over the full inferred homepage bracket; keep 1s earliest-end guard. No duration changes or post-end extrapolation.",
+  "limitations": [
+    "Krita n=1",
+    "homepage event missing from historic trace; true offset is not known",
+    "Table has hot/cold timing modes; not every individual maximum coincides",
+    "actual manual pacing and concurrent I/O/CPU can change operation timing",
+    "historical curve window overlap is a hypothesis to verify in first run, not a zero-overlap statement or a runtime guarantee"
+  ],
+  "manual_frontend_end": "explicit done marker; Krita process exit is not task_end",
+  "steady_clock": "CLOCK_MONOTONIC",
+  "high_memory_fraction": 0.95,
+  "profile_overlap_contract": {
+    "definition": "Each measured Table peak sample falls inside all three other operations >=95% sampled-peak platforms over the inferred homepage bracket; offline, not a runtime guarantee",
+    "minimum_peak_fractions": {
+      "Krita": 0.970447104896421,
+      "XZ": 0.9712219146982951,
+      "Array": 0.9921478961603881
+    },
+    "combinations": 270,
+    "validated": true,
+    "task_charge_at_Table_peaks_min_bytes": 20283499045.831627,
+    "task_charge_at_Table_peaks_max_bytes": 20377411584.0
+  },
+  "kernel_interface_reference": "docs/kernel-6.17.13-oomlab-reference.md: user reports cgroup-v2 rw and frozen0->1->0 on 6.17.13-oomlab; deployment scope/permissions rechecked at actual run"
+}

@@ -1,0 +1,17 @@
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+**/outputs/*
+!**/outputs/.gitkeep
+**/results/
+**/data/
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Handoff inputs and historical experiment evidence
+/前台操作/素材/OOM_assets/
+/后台操作/素材/oom_data/
+/实验结果/
+/冻结并发/离线规划器/memshift_oracle_plan

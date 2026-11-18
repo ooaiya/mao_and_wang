@@ -1,0 +1,7 @@
+operation,n,threshold_fraction,window_start_s,window_end_s,span_s,definition
+Krita,1,0.95,753.5500000000001,786.0500000000001,32.5,continuous mean curve >= 95% own peak; only n=all-selected observations
+Krita,1,0.95,786.5500000000001,829.0,42.44999999999993,continuous mean curve >= 95% own peak; only n=all-selected observations
+Krita,1,0.95,848.0,1193.8,345.79999999999995,continuous mean curve >= 95% own peak; only n=all-selected observations
+XZ,3,0.95,660.85,755.7,94.85000000000002,continuous mean curve >= 95% own peak; only n=all-selected observations
+Table,10,0.95,5.6000000000000005,6.2,0.5999999999999996,continuous mean curve >= 95% own peak; only n=all-selected observations
+Array,9,0.95,1.7000000000000002,19.5,17.8,continuous mean curve >= 95% own peak; only n=all-selected observations

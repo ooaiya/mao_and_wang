@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "interval_s": 0.05,
+  "asset": {
+    "path": "/home/ooaiya/OOM_assets/krita_9000_45/blank_9000x9000.ora",
+    "sha256": null,
+    "width": 9000,
+    "height": 9000,
+    "layers": 1
+  },
+  "display_size": [
+    2872,
+    1482
+  ],
+  "safety": {
+    "max_sample_gap_s": 0.5,
+    "max_other_process_rss_bytes": 1073741824,
+    "min_available_bytes": 1610612736,
+    "min_swap_free_bytes": 322122547,
+    "min_disk_free_bytes": 10737418240,
+    "max_cgroup_bytes": 13000000000,
+    "max_global_full_avg10": 10,
+    "cooldown_cgroup_bytes": 134217728,
+    "cooldown_min_available_bytes": 1610612736,
+    "cooldown_max_full_avg10": 2,
+    "cooldown_timeout_s": 300,
+    "cooldown_stable_s": 5,
+    "run_timeout_s": 4800
+  },
+  "acceptance": {},
+  "forbidden_processes": [
+    "krita",
+    "memshiftd",
+    "memshift_taskctl",
+    "ms_freezer_guard",
+    "xz"
+  ],
+  "forbidden_units": [
+    "memshift",
+    "freezer",
+    "strategy",
+    "oomlab-a-"
+  ],
+  "forbidden_sockets": [
+    "${XDG_RUNTIME_DIR}/memshiftd/control.sock",
+    "/tmp/memshiftd/control.sock",
+    "/data/local/tmp/memshiftd/control.sock"
+  ],
+  "mode": "pilot",
+  "pilot": {
+    "layers_dir": "/home/ooaiya/OOM_assets/krita_9000_45/layers",
+    "psi_full_sustained_s": 5,
+    "graceful_stop_timeout_s": 30
+  },
+  "automation": {
+    "startup_timeout_s": 60,
+    "open_timeout_s": 600,
+    "import_timeout_s": 600,
+    "close_timeout_s": 60,
+    "unresponsive_timeout_s": 30,
+    "poll_s": 0.5,
+    "accessibility_python": "/usr/bin/python3",
+    "graceful_stop_timeout_s": 10,
+    "completion_mode": "timed_window",
+    "capture_window_s": 1350,
+    "timing_basis": {
+      "curve_sha256": "ee1dd70dd114f0d9072763bdf6ec35a07f99f5a0cd889072e002ca20736d09f0",
+      "import_duration_s": 1289.025072748,
+      "post_import_observation_s": 60
+    }
+  }
+}

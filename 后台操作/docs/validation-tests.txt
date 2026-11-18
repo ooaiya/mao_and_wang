@@ -1,0 +1,27 @@
+test_cleanup_failure_stops_remaining_rounds (test_collection.CollectionTests.test_cleanup_failure_stops_remaining_rounds) ... ok
+test_controller_sampling_through_fake_service_boundary (test_collection.CollectionTests.test_controller_sampling_through_fake_service_boundary) ... ok
+test_lock_rejects_another_collector (test_collection.CollectionTests.test_lock_rejects_another_collector) ... ok
+test_preflight_failure_preserves_report (test_collection.CollectionTests.test_preflight_failure_preserves_report) ... ok
+test_start_failure_evidence (test_collection.CollectionTests.test_start_failure_evidence) ... ok
+test_alignment_interpolation_missing_tail (test_core.CoreTests.test_alignment_interpolation_missing_tail) ... ok
+test_cleanup_ownership (test_core.CoreTests.test_cleanup_ownership) ... ok
+test_cleanup_rejects_unrelated_units (test_core.CoreTests.test_cleanup_rejects_unrelated_units) ... ok
+test_cli_nonfinite_arguments_rejected (test_core.CoreTests.test_cli_nonfinite_arguments_rejected) ... ok
+test_cv_sample_standard_deviation (test_core.CoreTests.test_cv_sample_standard_deviation) ... ok
+test_env_permission_error (test_core.CoreTests.test_env_permission_error) ... ok
+test_event_deltas_and_unknown (test_core.CoreTests.test_event_deltas_and_unknown) ... ok
+test_missing_controls_and_permissions (test_core.CoreTests.test_missing_controls_and_permissions) ... ok
+test_no_extrapolation_or_after_end (test_core.CoreTests.test_no_extrapolation_or_after_end) ... ok
+test_profiles (test_core.CoreTests.test_profiles) ... ok
+test_qualification_thresholds_and_corrupt_curve (test_core.CoreTests.test_qualification_thresholds_and_corrupt_curve) ... ok
+test_real_small_workloads (test_core.CoreTests.test_real_small_workloads) ... ok
+test_report_empty_not_run (test_core.CoreTests.test_report_empty_not_run) ... ok
+test_report_failed_round_exclusion (test_core.CoreTests.test_report_failed_round_exclusion) ... ok
+test_service_only_local_limits (test_core.CoreTests.test_service_only_local_limits) ... ok
+test_unknown_oom_or_failure_invalid (test_core.CoreTests.test_unknown_oom_or_failure_invalid) ... ok
+test_worker_sleep_and_readonly_cgroup_sampling (test_core.CoreTests.test_worker_sleep_and_readonly_cgroup_sampling) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 0.898s
+
+OK

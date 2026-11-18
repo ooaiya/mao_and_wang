@@ -1,0 +1,24 @@
+{
+  "operation": "array_processing",
+  "parameters": {
+    "elements": 90000000,
+    "dtype": "float64",
+    "arrays": 3,
+    "chunk_elements": 1000000,
+    "seed": 20261026
+  },
+  "seed": 20261026,
+  "complete": true,
+  "file": "parameters.json",
+  "sha256": "d0e1748db5423006be8685e78a0cecfb5d0aa7ee37cffa7a7b6c683f75a7cf05",
+  "size_bytes": 393,
+  "configuration_sha256": "2c9c616d2ddec346b783862b6928319e8a4dfa112a4816006049644a95726ee7",
+  "dataset_id": "array-2c9c616d2ddec346b783862b",
+  "generated_utc": "2026-11-01T05:06:56.044269+00:00",
+  "expected": {
+    "elements": 90000000,
+    "arrays": 3,
+    "dtype": "float64"
+  },
+  "theoretical_array_bytes": 2160000000
+}

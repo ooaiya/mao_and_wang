@@ -1,0 +1,63 @@
+{
+  "scope": "tiny inputs only; no formal pressure experiment; original execute and verify implementations unchanged",
+  "results": [
+    {
+      "operation": "xz",
+      "status": "PASS",
+      "parameters": {
+        "input_mib": 1,
+        "dict_mib": 1,
+        "threads": 1
+      },
+      "verification": {
+        "ok": true,
+        "method": "independent prepared expected values / decompressed SHA256"
+      }
+    },
+    {
+      "operation": "table",
+      "status": "PASS",
+      "parameters": {
+        "rows": 64,
+        "users": 8,
+        "categories": 4,
+        "days": 3,
+        "extras": 4
+      },
+      "verification": {
+        "ok": true,
+        "method": "independent prepared expected values / decompressed SHA256"
+      }
+    },
+    {
+      "operation": "array_processing",
+      "status": "PASS",
+      "parameters": {
+        "elements": 128,
+        "dtype": "float64",
+        "arrays": 3,
+        "chunk_elements": 32,
+        "seed": 20261026
+      },
+      "verification": {
+        "ok": true,
+        "method": "seed replay B/C; monotonic A and seeded multiset sum/xor; bounded aggregation",
+        "result_sha256": "359148602b045a609a0477df39c7c935e7dde142c559f98579c0efca5c1c6e17",
+        "output_sha256": "2f6fe518460252e87b8150b125865eaf7636e6f8510e518a52ad683dc7aa5d12",
+        "data_sha256s": [
+          "ea9079465feafe58a3a7bd5cea2b4403340460c6dfdabc0e89baed26256a2cf2",
+          "61cdda8a05cdfe2d2b51780dffc024c37ae3431fcc64bc775ad50f4f3eee83f5",
+          "9b5c7eaa7b420857a54de7b5dd5d31cac8478ea520dad77d8203f9661d33469d"
+        ]
+      }
+    },
+    {
+      "operation": "table_corruption_negative_control",
+      "status": "PASS",
+      "verification": {
+        "ok": false,
+        "error": "ValueError('表格行数/计数校验失败')"
+      }
+    }
+  ]
+}

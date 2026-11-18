@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "xz": {
+    "small": {
+      "input_mib": 256,
+      "dict_mib": 96,
+      "threads": 1
+    },
+    "medium": {
+      "input_mib": 1024,
+      "dict_mib": 128,
+      "threads": 1
+    },
+    "large": {
+      "input_mib": 1792,
+      "dict_mib": 128,
+      "threads": 1
+    },
+    "historical_1792": {
+      "input_mib": 1792,
+      "dict_mib": 128,
+      "threads": 1
+    }
+  },
+  "table": {
+    "small": {
+      "rows": 10000,
+      "users": 1000,
+      "categories": 32,
+      "days": 31,
+      "extras": 4
+    },
+    "medium": {
+      "rows": 4000000,
+      "users": 200000,
+      "categories": 32,
+      "days": 31,
+      "extras": 4
+    },
+    "large": {
+      "rows": 8000000,
+      "users": 200000,
+      "categories": 32,
+      "days": 31,
+      "extras": 4
+    }
+  },
+  "file_indexing": {
+    "small": {
+      "files": 1000,
+      "depth": 3,
+      "name_length": 40,
+      "file_bytes": 128,
+      "batch": 250,
+      "segments": 4
+    },
+    "medium": {
+      "files": 100000,
+      "depth": 4,
+      "name_length": 64,
+      "file_bytes": 128,
+      "batch": 10000,
+      "segments": 10
+    },
+    "large": {
+      "files": 1000000,
+      "depth": 5,
+      "name_length": 96,
+      "file_bytes": 128,
+      "batch": 50000,
+      "segments": 20
+    }
+  }
+}
