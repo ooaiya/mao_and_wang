@@ -16,9 +16,13 @@ from oomlab_krita_collect.pilot_assets import inventory
 def relocated(original, assets_root):
     path = Path(original)
     parts = path.parts
-    if 'OOM_assets' not in parts:
-        raise ValueError(f'template path is outside OOM_assets: {original}')
-    relative = parts[parts.index('OOM_assets') + 1:]
+    team_template_root = GUI.parents[2] / 'assets/foreground'
+    if 'OOM_assets' in parts:
+        relative = parts[parts.index('OOM_assets') + 1:]
+    elif path.is_relative_to(team_template_root):
+        relative = path.relative_to(team_template_root).parts
+    else:
+        raise ValueError(f'template path is outside supported foreground assets: {original}')
     if '..' in relative:
         raise ValueError(f'unsafe template path: {original}')
     return str(assets_root.joinpath(*relative))
