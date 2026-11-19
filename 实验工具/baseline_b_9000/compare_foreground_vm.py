@@ -6,10 +6,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-h=Path.home();manual=h/'oom_lab/results/foregroundB-9000-45-20261108T232216Z/foreground_curve.csv'
-automatic=h/'oom_lab/reviews/timed-74747b98aa7148bbbe299f316c2a7b43/foreground_curve.csv'
+h=Path.home();manual=h/'TeamOOM/results/foregroundB-9000-45-20261108T232216Z/foreground_curve.csv'
+automatic=h/'TeamOOM/reports/reviews/timed-74747b98aa7148bbbe299f316c2a7b43/foreground_curve.csv'
 shift=14.399224989;duration=1350.;curves={};sources={}
-out=h/'oom_lab/reviews'/('foreground-comparison-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()));out.mkdir()
+out=h/'TeamOOM/reports/reviews'/('foreground-comparison-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()));out.mkdir()
 for key,path,tcol,offset in [('manual',manual,'t_s',shift),('auto',automatic,'t_since_import_s',0)]:
     with path.open() as f:
         rows=[]
@@ -47,7 +47,7 @@ delta=dict(peak_pct=(metrics['auto']['charge_peak_GiB']/metrics['manual']['charg
 
 # Candidate releases use the same measured background profiles and guarded XZ
 # age as the prior plan. This is a prediction, not a new concurrency run.
-oldplan=json.loads((h/'oom_lab/plans/noswap-20261109T002744Z/plan.json').read_text());bg={}
+oldplan=json.loads((h/'TeamOOM/inputs/plans/noswap-20261109T002744Z/plan.json').read_text());bg={}
 for op in ['xz','table','array']:
     p=Path(oldplan['sources'][op]['path']);n=oldplan['sources'][op]['n']
     with p.open() as f:bg[op]=np.array([[float(r['relative_s']),float(r['memory_current_mean'])] for r in csv.DictReader(f) if r['memory_current_mean'] and int(r['memory_current_n'])==n])

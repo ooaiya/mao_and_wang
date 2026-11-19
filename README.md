@@ -1,5 +1,7 @@
 # OOM 内存压力与冻结并发实验
 
+`mxt` Ubuntu VM 的独立目录、依赖及采集分支约定见 [VM_MXT_DEPLOYMENT.md](VM_MXT_DEPLOYMENT.md)。正式素材未随 Git 提供，须先核验，不能以个人 OOM 数据代替。
+
 本项目在 Ubuntu 上用自动化 Krita 和三个后台任务构造内存竞争，比较串行、无干预基线、曲线分级冻结、仅冻结和实时分级冻结。XZ 与栅格 FFT 分别与 Krita、Table、Array 组成两套四任务场景。
 
 ## 目录

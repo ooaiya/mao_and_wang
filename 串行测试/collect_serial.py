@@ -15,7 +15,7 @@ from remote import ssh
 SCRIPT = r'''
 import base64,hashlib,io,json,tarfile
 from pathlib import Path
-h=Path.home(); latest=RECEIPT or json.loads((h/'oom_lab/config/SERIAL_LATEST.json').read_text())
+h=Path.home(); latest=RECEIPT or json.loads((h/'TeamOOM/runtime/config/SERIAL_LATEST.json').read_text())
 root=Path(latest['output']); source=Path(latest['source'])
 assert (root/'report.md').exists(), 'post-run review is not complete'
 excluded=[]; buf=io.BytesIO()

@@ -66,6 +66,7 @@ class PressureProfileTests(unittest.TestCase):
         medium=script_contract(config=read(GUI/'configs/collection.rapid-9000-medium-tail-extended.json'))
         low_duration=medium['pressure_profile']['pre_import_review_s']
         config['automation']['pressure_profile']['pre_import_review_s']=low_duration
+        config['automation']['prepared_document']['path']=medium['prepared_document']['path']
         contract=script_contract(config=config)
         asset=contract['prepared_document']['path']
         duration=contract['capture_window_s']

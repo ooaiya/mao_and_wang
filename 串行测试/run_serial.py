@@ -42,7 +42,7 @@ class Serial:
         self.no_swap=no_swap
         os.chown(self.out,1000,1000);self.timeline=Timeline(self.out,self.out.name)
         self.groups={};self.processes={};self.logs=[];self.records={};self.monitor=None;self.inhibitor=None;self.oom_before=None
-        self.env=dict(os.environ,HOME=str(self.home),USER='ooaiya',LOGNAME='ooaiya',DISPLAY=':0',XDG_RUNTIME_DIR='/run/user/1000',
+        self.env=dict(os.environ,HOME=str(self.home),USER='mxt',LOGNAME='mxt',DISPLAY=':0',XDG_RUNTIME_DIR='/run/user/1000',
              DBUS_SESSION_BUS_ADDRESS='unix:path=/run/user/1000/bus',WAYLAND_DISPLAY='wayland-0',XDG_SESSION_TYPE='wayland',
              QT_QPA_PLATFORM='xcb',QT_LINUX_ACCESSIBILITY_ALWAYS_ON='1',LC_ALL='C.UTF-8')
     def event(self,kind,op='',**kw):
@@ -55,9 +55,9 @@ class Serial:
             session=line.split()[0]
             fields=dict(row.split('=',1) for row in subprocess.check_output(
                 ['loginctl','show-session',session,'-p','Name','-p','Seat','-p','LockedHint','-p','Type'],text=True).splitlines())
-            if fields=={'Name':'ooaiya','Seat':'seat0','LockedHint':'no','Type':'wayland'}:
+            if fields=={'Name':'mxt','Seat':'seat0','LockedHint':'no','Type':'wayland'}:
                 self.env['XDG_SESSION_ID']=session;break
-        else:raise RuntimeError('unlocked ooaiya Wayland desktop session required')
+        else:raise RuntimeError('unlocked mxt Wayland desktop session required')
         if self.foreground_inputs:
             settings_path,assets_path=self.foreground_inputs
             self.source=self.foreground_source
@@ -101,7 +101,7 @@ class Serial:
             if hashes!=original['files']:raise RuntimeError('foreground code differs from verified timed implementation')
         save(self.out/'source_provenance.json',dict(foreground=original,runner_sha256=digest(__file__),
             foreground_source=str(self.source),foreground_independent_run=None if self.foreground_inputs else str(prior),
-            bg_workloads_sha256=digest(self.home/'bg/oomlab/workloads.py')))
+            bg_workloads_sha256=digest(self.home/'TeamOOM/repo/后台操作/oomlab/workloads.py')))
         if self.no_swap:
             save(self.out/'swap_state.json',dict(entries=active_swap(),proc_swaps=Path('/proc/swaps').read_text()))
             subprocess.run(['swapoff','-a'],check=True)
@@ -117,7 +117,7 @@ class Serial:
     def background_provenance(self):
         provenance={}
         for op in self.background_input_ops:
-            data=self.home/'oom_data'/('array_large' if op=='array' else op+'_large');m=json.loads((data/'manifest.json').read_text())
+            data=self.home/'TeamOOM/assets/background'/('array_large' if op=='array' else op+'_large');m=json.loads((data/'manifest.json').read_text())
             actual=digest(data/m['file'])
             if actual!=m['sha256'] or actual!=EXPECTED[op]:raise RuntimeError('background input changed: '+op)
             provenance[op]=dict(path=str(data),manifest=m,input_sha256=actual)
@@ -132,7 +132,7 @@ class Serial:
         log=(folder/'process.log').open('w');self.logs.append(log)
         if self.timeline.t0_ns is None:self.timeline.t0_ns=time.monotonic_ns()
         start=time.monotonic_ns()
-        p=subprocess.Popen([sys.executable,'-c',gate,str(cg),*command],cwd=self.home/'bg',env=self.env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+        p=subprocess.Popen([sys.executable,'-c',gate,str(cg),*command],cwd=self.home/'TeamOOM/repo/后台操作',env=self.env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
         self.processes[op]=p;self.groups[op]['pid']=p.pid
         self.records[op]=dict(pid=p.pid,start_ns=start,command=command,cgroup=str(cg))
         self.event('task_start',op,actual_ns=start,pid=p.pid,command=command)
@@ -153,10 +153,10 @@ class Serial:
         error=None
         try:
             self.prepare()
-            self.launch('foreground_krita',[str(self.home/'bg/.venv/bin/python'),'-u',str(self.gui/'scripts/krita_auto.py'),self.config['asset']['path'],
+            self.launch('foreground_krita',[str(self.home/'TeamOOM/runtime/venv/bin/python'),'-u',str(self.gui/'scripts/krita_auto.py'),self.config['asset']['path'],
                 '--layers-dir',self.config['pilot']['layers_dir'],'--settings',str(self.out/'foreground_config.json'),
                 '--assets-manifest',str(self.out/'foreground_assets.json'),'--process-record',str(self.out/'foreground_krita/process.json')])
-            for op in ORDER[1:]:self.launch(op,[str(self.home/'bg/.venv/bin/python'),'-m','oomlab.workloads',self.provenance[op]['path'],str(self.out/op),'--operation-id',op])
+            for op in ORDER[1:]:self.launch(op,[str(self.home/'TeamOOM/runtime/venv/bin/python'),'-m','oomlab.workloads',self.provenance[op]['path'],str(self.out/op),'--operation-id',op])
         except BaseException as e:error=repr(e);self.event('serial_error',error=error)
         finally:
             # Close only this run's process groups, including orphaned GUI helpers.
@@ -182,7 +182,7 @@ class Serial:
         return 0 if error is None else 1
 
 if __name__=='__main__':
-    a=argparse.ArgumentParser();a.add_argument('--output',required=True);a.add_argument('--home',default='/home/ooaiya')
+    a=argparse.ArgumentParser();a.add_argument('--output',required=True);a.add_argument('--home',default='/home/mxt')
     a.add_argument('--foreground-run',required=True);a.add_argument('--foreground-source',required=True);a.add_argument('--no-swap',action='store_true')
     args=a.parse_args()
     def interrupt(signum,frame):raise KeyboardInterrupt('termination signal')

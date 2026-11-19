@@ -126,7 +126,7 @@ class RasterPriority(SegmentedFreezer):
         if op != RASTER:
             return super().command(op)
         inputs = self.provenance[op]
-        return [str(self.home / 'bg/.venv/bin/python'), str(WORKER), '--side', str(inputs['side']),
+        return [str(self.home / 'TeamOOM/runtime/venv/bin/python'), str(WORKER), '--side', str(inputs['side']),
                 '--sweeps', str(inputs['sweeps']), '--output', str(self.out / op / 'output.json')]
 
     def background_start_ns(self, op):

@@ -3,10 +3,10 @@ import csv,hashlib,json,time
 from pathlib import Path
 import numpy as np
 
-home=Path.home();out=home/'oom_lab/plans'/('noswap-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()));out.mkdir(parents=True,exist_ok=False)
+home=Path.home();out=home/'TeamOOM/inputs/plans'/('noswap-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()));out.mkdir(parents=True,exist_ok=False)
 curves={};sources={};details={}
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
-fp=home/'oom_lab/results/foregroundB-9000-45-20261108T232216Z/foreground_curve.csv'
+fp=home/'TeamOOM/results/foregroundB-9000-45-20261108T232216Z/foreground_curve.csv'
 with fp.open() as f:
  rows=list(csv.DictReader(f))
 curves['foreground_krita']=np.array([[float(r['t_s']),float(r['memory_current_bytes'])] for r in rows])

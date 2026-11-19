@@ -22,14 +22,14 @@ if __name__=='__main__':
 from pathlib import Path
 h=Path.home()
 prefix='freezer-realtime-' if execution_policy=='realtime' else 'freezer-'
-source=h/'oom_lab/tools'/(prefix+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()));source.mkdir(parents=True,exist_ok=False)
+source=h/'TeamOOM/runtime/tools'/(prefix+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()));source.mkdir(parents=True,exist_ok=False)
 '''
     script+='files='+repr(payload)+'\n'
     script+='''for name,data in files.items():
  p=source/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(base64.b64decode(data))
 receipt=dict(source=str(source),execution_policy=execution_policy)
 pointer={'priority':'FREEZER_PRIORITY_SOURCE.json','realtime':'FREEZER_REALTIME_SOURCE.json'}[execution_policy]
-(h/'oom_lab/config'/pointer).write_text(json.dumps(receipt))
+(h/'TeamOOM/runtime/config'/pointer).write_text(json.dumps(receipt))
 print(json.dumps(receipt))
 '''
     reply=ssh(script,120)

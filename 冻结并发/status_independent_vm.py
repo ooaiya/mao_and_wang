@@ -1,6 +1,6 @@
 import csv,io,json,time
 from pathlib import Path
-h=Path.home();latest=json.loads((h/'oom_lab/config/FREEZER_LATEST.json').read_text());r=Path(latest['output'])
+h=Path.home();latest=json.loads((h/'TeamOOM/runtime/config/FREEZER_LATEST.json').read_text());r=Path(latest['output'])
 if (r/'validation.json').exists():
     d=json.loads((r/'validation.json').read_text())
     keys=['success','total_from_homepage_s','total_from_first_launch_s','global_oom_kill_delta','swap_zero_all_formal_samples','system_min_available_GiB','system_pressure_peak_GiB','freezer_proofs','independent_ledger_recheck','sampling']

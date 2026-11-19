@@ -5,7 +5,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-run=Path(sys.argv[1]);h=Path.home();source=Path((h/'oom_lab/src/KRITA_TIMED_SOURCE.txt').read_text().strip())
+run=Path(sys.argv[1]);h=Path.home();source=Path((h/'TeamOOM/runtime/src/KRITA_TIMED_SOURCE.txt').read_text().strip())
 base=source/'前台操作/前台操作自动化脚本采集'
 sys.path.insert(0,str(base))
 from oomlab_krita_collect.validation import validate_run,iter_samples
@@ -13,7 +13,7 @@ summary=validate_run(run)
 events=[json.loads(x) for x in (run/'krita/phase-events.jsonl').read_text().splitlines()]
 by={e['kind']:e for e in events if e.get('kind')}
 origin=by['LAYER_IMPORT_SUBMITTED']['monotonic_ns'];deadline=origin+int(1350e9)
-review=h/'oom_lab/reviews'/('timed-'+run.name);review.mkdir(parents=True,exist_ok=False)
+review=h/'TeamOOM/reports/reviews'/('timed-'+run.name);review.mkdir(parents=True,exist_ok=False)
 rows=[];last=None;gaps=[]
 with (review/'foreground_curve.csv').open('w',newline='') as f:
     fields=['t_since_import_s','memory_current_bytes','kernel_peak_bytes','anon_bytes','file_bytes','swap_bytes','system_available_bytes','krita_rss_bytes']

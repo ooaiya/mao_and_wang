@@ -6,14 +6,14 @@ from remote import ssh
 data=base64.b64encode(Path(__file__).with_name('review_independent.py').read_bytes()).decode()
 script='''import base64,json,subprocess
 from pathlib import Path
-h=Path.home();v=json.loads((h/'oom_lab/config/FREEZER_LATEST.json').read_text());source=Path(v['source']);out=Path(v['output'])
+h=Path.home();v=json.loads((h/'TeamOOM/runtime/config/FREEZER_LATEST.json').read_text());source=Path(v['source']);out=Path(v['output'])
 '''
 script+='data='+repr(data)+'\n'
 script+='''review=source/'冻结并发/review_independent.py';temp=review.with_suffix('.tmp');temp.write_bytes(base64.b64decode(data));temp.replace(review)
-waiter=h/'oom_lab/tools'/('wait-'+out.name+'.py')
-lines=["import subprocess,time;from pathlib import Path","out=Path("+repr(str(out))+")","while not (out/'summary.json').exists():time.sleep(5)","time.sleep(2)","raise SystemExit(subprocess.call("+repr([str(h/'bg/.venv/bin/python'),str(review),str(out)])+"))"]
+waiter=h/'TeamOOM/runtime/tools'/('wait-'+out.name+'.py')
+lines=["import subprocess,time;from pathlib import Path","out=Path("+repr(str(out))+")","while not (out/'summary.json').exists():time.sleep(5)","time.sleep(2)","raise SystemExit(subprocess.call("+repr([str(h/'TeamOOM/runtime/venv/bin/python'),str(review),str(out)])+"))"]
 waiter.write_text(chr(10).join(lines))
-log=h/'oom_lab/reviews'/('post-'+out.name+'.log');log.parent.mkdir(exist_ok=True)
+log=h/'TeamOOM/reports/reviews'/('post-'+out.name+'.log');log.parent.mkdir(exist_ok=True)
 existing=[]
 for item in Path('/proc').iterdir():
  if item.name.isdigit():

@@ -7,7 +7,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-root=Path.home()/'oom_lab/results/baselineB-9000-45-20261108T151125Z'
+root=Path.home()/'TeamOOM/results/baselineB-9000-45-20261108T151125Z'
 summary=json.loads((root/'summary.json').read_text());t0=summary['T0_monotonic_ns']
 events=[json.loads(x) for x in (root/'events.jsonl').read_text().splitlines()]
 curves={op:[] for op in ['foreground_krita','xz','table','array']}

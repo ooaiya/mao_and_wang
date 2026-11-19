@@ -388,8 +388,8 @@ def quit_krita(event):
 
 def main(argv=None):
     # Kept from the current experiment design; collector reads these literals by AST.
-    default_asset_path='/home/mxt/OOM_assets/krita_8000_manual/blank_8000x8000.ora'
-    layer_dir='/home/mxt/OOM_assets/krita_8000_manual/layers/'
+    default_asset_path='/home/mxt/TeamOOM/assets/foreground/krita_8000_manual/blank_8000x8000.ora'
+    layer_dir='/home/mxt/TeamOOM/assets/foreground/krita_8000_manual/layers/'
     total_layers=45
     keep_duration_s=1800
     parser=argparse.ArgumentParser();parser.add_argument('asset',nargs='?',default=default_asset_path)

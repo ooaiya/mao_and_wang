@@ -17,7 +17,7 @@ class Freezer(Serial):
     run_kind='freezer'
     background_ops=OPS
     def __init__(self,out,profiles,binary):
-        super().__init__(out,'/home/ooaiya')
+        super().__init__(out,'/home/mxt')
         self.profiles=Path(profiles);self.binary=Path(binary);self.freeze_rows=[];self.pipes={};self.done=set();self.last_wait={};self.started=time.monotonic_ns();self.foreground_events=[]
     def prepare(self,start_monitor=False):
         super().prepare(start_monitor=False)
@@ -29,17 +29,17 @@ class Freezer(Serial):
         self.monitor=Monitor(self.out,self.timeline,self.groups);self.monitor.start()
     def command(self,op):
         if op=='foreground_krita':
-            return [str(self.home/'bg/.venv/bin/python'),'-u',str(self.gui/'scripts/krita_auto.py'),self.config['asset']['path'],
+            return [str(self.home/'TeamOOM/runtime/venv/bin/python'),'-u',str(self.gui/'scripts/krita_auto.py'),self.config['asset']['path'],
                 '--layers-dir',self.config['pilot']['layers_dir'],'--settings',str(self.out/'foreground_config.json'),
                 '--assets-manifest',str(self.out/'foreground_assets.json'),'--process-record',str(self.out/op/'process.json')]
-        return [str(self.home/'bg/.venv/bin/python'),'-m','oomlab.workloads',self.provenance[op]['path'],str(self.out/op),'--operation-id',op]
+        return [str(self.home/'TeamOOM/runtime/venv/bin/python'),'-m','oomlab.workloads',self.provenance[op]['path'],str(self.out/op),'--operation-id',op]
     def launch(self,op,*,freeze_on_submit=True,defer_release=False):
         folder=self.out/op;folder.mkdir();os.chown(folder,1000,1000);cg=self.cm.create(op)
         self.groups[op]=dict(cgroup_path=str(cg),pid=None)
         save(folder/'memory_controls.json',{k:(cg/k).read_text().strip() for k in ['memory.max','memory.high','memory.swap.max','memory.oom.group']})
         r,w=os.pipe();self.pipes[op]=w;log=(folder/'process.log').open('w');self.logs.append(log)
         command=self.command(op);start=time.monotonic_ns();ready=folder/'gate_ready.json'
-        p=subprocess.Popen([sys.executable,str(Path(__file__).with_name('allocation_gate.py')),'--group',str(cg),'--ready',str(ready),'--fd',str(r),'--',*command],pass_fds=(r,),cwd=self.home/'bg',env=self.env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+        p=subprocess.Popen([sys.executable,str(Path(__file__).with_name('allocation_gate.py')),'--group',str(cg),'--ready',str(ready),'--fd',str(r),'--',*command],pass_fds=(r,),cwd=self.home/'TeamOOM/repo/后台操作',env=self.env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
         os.close(r);self.processes[op]=p;self.groups[op]['pid']=p.pid;self.records[op]=dict(pid=p.pid,created_ns=start,command=command,cgroup=str(cg))
         until=time.monotonic()+10
         while not ready.exists():

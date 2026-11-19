@@ -56,7 +56,7 @@ def check(c,results,require_gui=True):
     probe('source',source_identity)
     probe('boot_id',lambda:Path('/proc/sys/kernel/random/boot_id').read_text().strip())
     probe('distribution',lambda:platform.freedesktop_os_release())
-    if info.get('source',{}).get('git_branch')!='main': errors.append('formal collection requires the main branch')
+    if info.get('source',{}).get('git_branch')!='mxt': errors.append('formal collection requires the mxt branch')
     probe('conflicts',lambda:conflicts(c))
     if info.get('conflicts'): errors.append('conflicting processes/units/sockets present')
     for tool in ['systemd-run','systemctl','journalctl','python3']+(['krita','wmctrl','xdotool','xdpyinfo','xprop','xwininfo'] if require_gui else []):

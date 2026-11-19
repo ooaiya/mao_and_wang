@@ -23,7 +23,7 @@ def parser():
         a.add_argument('--config', default=str(ROOT / 'configs/profiles.json'))
         a.add_argument('--data', required=True, help='单个操作的独立样本目录')
     for a in [sub.choices['collect'], sub.add_parser('smoke')]:
-        a.add_argument('--results', default='results')
+        a.add_argument('--results', default='/home/mxt/TeamOOM/results')
         a.add_argument('--rounds', type=int, default=3)
         a.add_argument('--interval', type=positive, default=.05)
         a.add_argument('--safety-gib', type=positive, default=8)

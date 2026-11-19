@@ -2,7 +2,7 @@
   "schema_version": 1,
   "interval_s": 0.05,
   "asset": {
-    "path": "/home/ooaiya/OOM_assets/krita_rapid_9000_46/light_9000.ora",
+    "path": "/home/mxt/TeamOOM/assets/foreground/krita_rapid_9000_46/light_9000.ora",
     "sha256": "04dca9c398803650ec04241ab66ddaa26a0f2a110fa90dc5bb6f2af6cc464182",
     "width": 9000,
     "height": 9000,
@@ -48,7 +48,7 @@
   ],
   "mode": "pilot",
   "pilot": {
-    "layers_dir": "/home/ooaiya/OOM_assets/krita_rapid_9000_46",
+    "layers_dir": "/home/mxt/TeamOOM/assets/foreground/krita_rapid_9000_46",
     "psi_full_sustained_s": 5,
     "graceful_stop_timeout_s": 30
   },
@@ -75,14 +75,14 @@
     },
     "tile_memory_percent": 67,
     "prepared_document": {
-      "path": "/home/ooaiya/OOM_assets/krita_rapid_9000_46/layered_9000_46.ora",
+      "path": "/home/mxt/TeamOOM/assets/foreground/krita_rapid_9000_46/layered_9000_46.ora",
       "sha256": "64350f6e98ded633f6f7f198d22c02b62c19f7bed711fda38ed9ffa6f47d5c21",
       "width": 9000,
       "height": 9000,
       "layers": 46
     },
     "tail_document": {
-      "path": "/home/ooaiya/OOM_assets/krita_rapid_9000_tail_07_medium/layered_9000_07.ora",
+      "path": "/home/mxt/TeamOOM/assets/foreground/krita_rapid_9000_tail_07_medium/layered_9000_07.ora",
       "sha256": "408ca79750dfdb55217a63215df26e8646d2780752c74426dd87984ee16550e5",
       "width": 9000,
       "height": 9000,

@@ -24,7 +24,7 @@ class RealtimeFreezer(SegmentedFreezer):
     priorities = PRIORITIES
 
     def __init__(self, output, foreground_source, foreground_config, foreground_assets, settings):
-        Serial.__init__(self, output, '/home/ooaiya', foreground_source=foreground_source,
+        Serial.__init__(self, output, '/home/mxt', foreground_source=foreground_source,
                         no_swap=True, foreground_inputs=(foreground_config, foreground_assets))
         self.settings = settings
         self.policy_config = asdict(settings)
@@ -250,7 +250,7 @@ class RasterRealtimeFreezer(RealtimeFreezer):
         if op != RASTER:
             return super().command(op)
         inputs = self.provenance[op]
-        return [str(self.home / 'bg/.venv/bin/python'), str(WORKER), '--side', str(inputs['side']),
+        return [str(self.home / 'TeamOOM/runtime/venv/bin/python'), str(WORKER), '--side', str(inputs['side']),
                 '--sweeps', str(inputs['sweeps']), '--output', str(self.out / op / 'output.json')]
 
     def background_start_ns(self, op):

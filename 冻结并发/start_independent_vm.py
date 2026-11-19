@@ -22,7 +22,7 @@ elif not all(serial_args):
     parser.error('priority requires --serial-run, --foreground-run and --foreground-source')
 else:
     pointer='FREEZER_PRIORITY_SOURCE.json'
-h=Path.home();v=json.loads((h/'oom_lab/config'/pointer).read_text());source=Path(v['source'])
+h=Path.home();v=json.loads((h/'TeamOOM/runtime/config'/pointer).read_text());source=Path(v['source'])
 session=subprocess.check_output(['loginctl','show-seat','seat0','-p','ActiveSession','--value'],text=True).strip()
 locked=subprocess.check_output(['loginctl','show-session',session,'-p','LockedHint'],text=True)
 if 'LockedHint=no' not in locked:raise RuntimeError('desktop locked; unlock before running')
@@ -33,7 +33,7 @@ if policy not in {'priority','realtime'} or args.realtime!=(policy=='realtime'):
 entry={'priority':'segmented_runner.py','realtime':'realtime_runner.py'}[policy]
 tag=policy
 if args.raster_reference:tag+='-raster'
-out=h/'oom_lab/results'/('freezer-'+tag+'-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()))
+out=h/'TeamOOM/results'/('freezer-'+tag+'-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()))
 unit='oomlab-freezer-'+tag+'-'+str(time.time_ns())
 receipt=dict(source=str(source),output=str(out),execution_policy=policy,unit=unit)
 if policy=='realtime':
@@ -61,5 +61,5 @@ q=subprocess.run(['sudo','-n','systemd-run','--unit='+unit,'-p','Delegate=yes','
     '/usr/bin/python3',str(source/'冻结并发'/entry),'--output',str(out),*options],capture_output=True,text=True)
 if q.returncode:raise RuntimeError(q.stdout+q.stderr)
 latest='FREEZER_REALTIME_LATEST.json' if args.realtime else 'FREEZER_LATEST.json'
-(h/'oom_lab/config'/latest).write_text(json.dumps(receipt))
+(h/'TeamOOM/runtime/config'/latest).write_text(json.dumps(receipt))
 print(json.dumps(receipt))

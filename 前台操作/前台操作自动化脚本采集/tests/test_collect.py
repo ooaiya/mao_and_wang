@@ -223,7 +223,7 @@ class ReportStatsTests(unittest.TestCase):
 
 
 class RepositoryLayoutTests(unittest.TestCase):
-    def test_main_layout_paths_and_source_identity(self):
+    def test_mxt_layout_paths_and_source_identity(self):
         from oomlab_krita_collect.common import source_identity
         self.assertEqual(GUI,ROOT/'前台操作/前台操作自动化脚本采集')
         self.assertEqual(BACKGROUND,ROOT/'后台操作')
@@ -233,5 +233,5 @@ class RepositoryLayoutTests(unittest.TestCase):
                      BACKGROUND/'configs/profiles.json'):
             self.assertTrue(path.is_file(),str(path))
         identity=source_identity()
-        self.assertEqual(identity['git_branch'],'main')
+        self.assertEqual(identity['git_branch'],'mxt')
         self.assertFalse(identity['source_dirty'])

@@ -1,6 +1,6 @@
 import json,time,csv,io
 from pathlib import Path
-h=Path.home();r=Path(json.loads((h/'oom_lab/config/SERIAL_LATEST.json').read_text())['output'])
+h=Path.home();r=Path(json.loads((h/'TeamOOM/runtime/config/SERIAL_LATEST.json').read_text())['output'])
 if (r/'validation.json').exists():
     d=json.loads((r/'validation.json').read_text());print('FINAL',json.dumps(d));raise SystemExit()
 es=[json.loads(x) for x in (r/'events.jsonl').read_text().splitlines()];starts=[e for e in es if e['event_type']=='task_start'];ends=[e for e in es if e['event_type']=='task_end']
