@@ -4,7 +4,8 @@ import argparse,json,os,signal,subprocess,threading,time
 from dataclasses import asdict
 from pathlib import Path
 from independent_runner import Freezer,OPS,memory,values,save,digest,members
-from priority_policy import PriorityPolicy,TaskMemory,write_memory_high
+from memory_prediction import phase_events,read_events
+from priority_policy import TaskMemory,policy_from_plan
 from segmented_scheduler import TaskClock
 from run_serial import Serial
 from freezer_monitor import Monitor
@@ -12,19 +13,24 @@ from restore_swap import active
 
 class SegmentedFreezer(Freezer):
     def __init__(self,out,profiles,binary,policy_path=None,serial_run=None,foreground_run=None,foreground_source=None,
-                 serial_policy='priority'):
+                 serial_policy='priority',*,predictor=None,independent_run=None):
         super().__init__(out,profiles,binary)
         self.serial_run=Path(serial_run) if serial_run else None
+        self.independent_run=Path(independent_run) if independent_run else None
         self.serial_policy=serial_policy
-        if self.serial_run:
+        self.predictor=predictor
+        if self.curve_reference:
             self.foreground_run=Path(foreground_run)
             self.foreground_source=Path(foreground_source)
         self.policy_path=Path(policy_path or Path(__file__).with_name('offline_config.json'))
         self.policy_config=json.loads(self.policy_path.read_text(encoding='utf-8'))
         self.clocks={};self.lock=threading.RLock();self.watch_stop=threading.Event();self.watch=None;self.watch_error=None
         self.last_decision=0;self.stable={};self.decision_stream=None;self.tick_id=0
+    @property
+    def curve_reference(self):
+        return self.serial_run or getattr(self,'independent_run',None)
     def prepare(self,start_monitor=False):
-        if self.serial_run:
+        if self.curve_reference:
             self.prepare_serial_curves()
             return
         super().prepare(start_monitor=False)
@@ -63,9 +69,7 @@ class SegmentedFreezer(Freezer):
             self.decision_stream=(self.out/'offline_execution.jsonl').open('w',buffering=1)
         self.monitor=Monitor(self.out,self.timeline,self.groups);self.monitor.start()
     def initialize_priority_policy(self):
-        budget=self.plan['budget']
-        self.priority_policy=PriorityPolicy(budget['reserve_bytes'],budget['emergency_floor_bytes'],
-                                            self.plan['priority'])
+        self.priority_policy=policy_from_plan(self.plan,self.predictor)
         save(self.out/'freeze_events.json',self.freeze_rows)
         self.decision_stream=(self.out/'priority_decisions.jsonl').open('w',encoding='utf-8',buffering=1)
     def validate_serial_inputs(self):
@@ -79,7 +83,7 @@ class SegmentedFreezer(Freezer):
                                 memory_info['MemTotal']-memory_info['MemAvailable'],self.binary,
                                 self.policy_config,priority=self.serial_policy=='priority')
     def launch(self,op):
-        run_on_submit=self.serial_run and self.serial_policy=='priority'
+        run_on_submit=self.curve_reference and self.serial_policy=='priority'
         super().launch(op,freeze_on_submit=not run_on_submit)
         if op in self.background_ops:
             with self.lock:
@@ -129,7 +133,8 @@ class SegmentedFreezer(Freezer):
                 c.resumed(proof['requested_monotonic_ns']/1e9,lease_until);r['state']='RUNNING'
                 r.setdefault('release_confirmed_ns',stamp);r['pause_intervals_ns'][-1][1]=stamp;r['running_intervals_ns'].append([stamp,None])
             proof.update(operation=op,action='freeze' if frozen else 'resume',reason=reason,generation=c.generation,
-                memory_current_bytes=int((cg/'memory.current').read_text()),cpu_usage_usec=values(cg/'cpu.stat')['usage_usec'],effective_model_age_s=c.age(stamp/1e9),lease_until_monotonic_s=c.lease_until,decision_tick=self.tick_id,admission=admission)
+                memory_current_bytes=int((cg/'memory.current').read_text()),anonymous_bytes=values(cg/'memory.stat')['anon'],
+                cpu_usage_usec=values(cg/'cpu.stat')['usage_usec'],effective_model_age_s=c.age(stamp/1e9),lease_until_monotonic_s=c.lease_until,decision_tick=self.tick_id,admission=admission)
             self.freeze_rows.append(proof);save(self.out/'freeze_events.json',self.freeze_rows);self.update_times(op)
             self.event('freeze_confirmed' if frozen else 'resume_confirmed',op,actual_ns=stamp,proof=proof)
             if frozen and op=='xz' and c.ever_started and hasattr(self,'offline') and not (self.out/'progress_at_freeze.json').exists():self.capture_progress()
@@ -206,7 +211,7 @@ class SegmentedFreezer(Freezer):
         return dict(allowed=available>=required,available_bytes=available,required_bytes=required,
                     role='post-foreground native continuation, runtime veto only')
     def scheduled(self):
-        if self.serial_run:
+        if self.curve_reference:
             if self.serial_policy=='priority':
                 self.schedule_priority()
             else:
@@ -287,6 +292,51 @@ class SegmentedFreezer(Freezer):
             self.event('priority_checkpoint_confirmed','foreground_krita',
                        actual_ns=self.high_exit_ns,observed_monotonic_s=now,pid=pid)
 
+    def prediction_age(self, op, now_ns, t0_ns):
+        if op=='foreground_krita':
+            reference=self.plan.get('priority_checkpoint',{}).get('reference_age_s')
+            if self.high_exit_ns is not None and reference is not None:
+                return reference+max(0,now_ns-self.high_exit_ns)/1e9
+            return max(0,now_ns-t0_ns)/1e9
+        record=self.records[op]
+        start=record.get('actual_start_ns',record['release_confirmed_ns'])
+        return sum(max(0,min(end if end is not None else now_ns,now_ns)-max(begin,start))
+                   for begin,end in record['running_intervals_ns'])/1e9
+
+    def prediction_events(self, op):
+        if op=='foreground_krita':
+            if self.high_exit_ns is not None:
+                return iter(self.foreground_events)
+            withheld={'HIGH_INSTANCE_EXIT'}
+            if self.plan.get('priority_checkpoint'):
+                withheld.add('POST_CLOSE_REVIEW_START')
+            return (row for row in self.foreground_events if row.get('kind') not in withheld)
+        path=self.out/op/'phase_trace.jsonl'
+        return read_events(path) if path.is_file() else ()
+
+    def prediction_position(self, op, now_ns, t0_ns):
+        age=self.prediction_age(op,now_ns,t0_ns)
+        markers=self.plan['models'][op].get('phase_markers_s',{})
+        floor=None
+        if op=='foreground_krita' and self.high_exit_ns is not None:
+            floor=self.plan['priority_checkpoint'].get('reference_age_s')
+        latest=max(((stamp,key) for key,stamp in phase_events(op,self.prediction_events(op))
+                    if key in markers and stamp<=now_ns and (floor is None or markers[key]>=floor)),
+                   default=None)
+        if latest is None:
+            return age,floor,None,None
+        stamp,key=latest
+        anchor=markers[key]
+        ceiling=min((value for value in markers.values() if value>anchor),default=None)
+        if ceiling is not None:
+            ceiling=max(anchor,ceiling-1e-9)
+        elapsed=(now_ns-stamp)/1e9 if op=='foreground_krita' else max(
+            0.,age-self.prediction_age(op,stamp,t0_ns))
+        estimate=anchor+elapsed
+        if ceiling is not None:
+            estimate=min(estimate,ceiling)
+        return estimate,anchor,ceiling,key
+
     def schedule_priority(self):
         t0=self.timeline.t0_ns
         if t0 is None:
@@ -311,8 +361,15 @@ class SegmentedFreezer(Freezer):
                 peak=self.plan['priority_checkpoint']['peak_bytes']
             anon=values(cg/'memory.stat')['anon']
             current=int((cg/'memory.current').read_text())
+            age,phase_floor,phase_ceiling,marker=self.prediction_position(op,time.monotonic_ns(),t0)
+            can_freeze=True
+            if self.priority_policy.reserve_foreground_peak and not protected:
+                can_freeze='actual_start_ns' in self.records[op]
+                if self.plan.get('workload_kind')=='shaped':
+                    can_freeze=can_freeze and marker not in (None, 'task_start', 'prepare', 'grow')
             tasks[op]=TaskMemory(self.plan['priority']['task_priorities'].get(op,0),protected,
-                                 protected or self.clocks[op].state=='RUNNING',current,min(anon,current),peak)
+                                 protected or self.clocks[op].state=='RUNNING',current,min(anon,current),peak,
+                                 age,phase_floor,phase_ceiling,marker,freeze_eligible=can_freeze)
         available=memory()['MemAvailable']
         now=time.monotonic()
         if now-started>self.policy_config['guard_interval_s']:
@@ -320,16 +377,15 @@ class SegmentedFreezer(Freezer):
             return
         self.last_decision=now
         self.tick_id+=1
-        decision=self.priority_policy.decide(now,available,tasks)
-        applied_limits={}
-        for op,limit in sorted(decision['limits'].items()):
-            write_memory_high(self.cm.checked(op),limit)
-            applied_limits[op]=(self.cm.checked(op)/'memory.high').read_text().strip()
+        elapsed=(now-t0/1e9)
+        upcoming={op:max(0.,offsets[op]-elapsed) for op in self.background_ops
+                  if op not in self.records and offsets[op]-elapsed<=self.priority_policy.horizon}
+        decision=self.priority_policy.decide(now,available,tasks,upcoming)
         self.decision_stream.write(json.dumps(dict(tick=self.tick_id,monotonic_s=now,
             checkpoint_ns=self.high_exit_ns,tasks={op:asdict(task) for op,task in sorted(tasks.items())},
-            decision=decision,applied_memory_high=applied_limits))+'\n')
+            upcoming_s=upcoming,decision=decision))+'\n')
         for op in decision['freeze']:
-            self.transition(op,True,'priority_pressure',admission=decision)
+            self.transition(op,True,'priority_forecast',admission=decision)
         if decision['abort']:
             raise RuntimeError('available memory fell below the experiment emergency floor')
         if decision['resume'] is not None:
@@ -418,7 +474,7 @@ class SegmentedFreezer(Freezer):
         if self.decision_stream:self.decision_stream.close()
         if self.watch_error:raise RuntimeError('lease watchdog failed: '+self.watch_error)
     def runtime_policy_evidence(self):
-        if self.serial_run:
+        if self.curve_reference:
             if self.serial_policy=='priority':
                 return dict(name='priority_freezer',background_start='run_on_submit',configuration=self.policy_config,
                             confirmed_checkpoint_ns=getattr(self,'high_exit_ns',None),guard_samples=self.tick_id,

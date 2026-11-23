@@ -22,9 +22,11 @@ class TargetEnvironmentTests(unittest.TestCase):
             '/proc/swaps': 'Filename Type Size Used Priority\n',
         }
         with ExitStack() as stack:
+            dependencies = {name: SimpleNamespace(__version__='fixture') for name in ('numpy', 'pandas')}
+            stack.enter_context(patch.dict(sys.modules, dependencies))
             stack.enter_context(patch.object(environment.platform, 'release', return_value=release))
             stack.enter_context(patch.object(environment.platform, 'freedesktop_os_release', return_value=distribution or {'ID': 'ubuntu', 'VERSION_ID': '22.04', 'PRETTY_NAME': 'Ubuntu 22.04.5 LTS'}))
-            stack.enter_context(patch.object(Path, 'read_text', autospec=True, side_effect=lambda p, *a, **k: files[str(p)]))
+            stack.enter_context(patch.object(Path, 'read_text', autospec=True, side_effect=lambda p, *a, **k: files[p.as_posix()]))
             stack.enter_context(patch.object(Path, 'is_file', return_value=True))
             stack.enter_context(patch.object(Path, 'exists', return_value=True))
             stack.enter_context(patch.object(environment.shutil, 'which', return_value='/fixture/tool'))
@@ -74,6 +76,7 @@ class TargetEnvironmentTests(unittest.TestCase):
                                   ('6.17.12-generic', False), ('6.17.14-generic', False),
                                   ('6.17.130-generic', False)]:
             with self.subTest(release=release), tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+                stack.enter_context(patch.object(frontend.os, 'geteuid', return_value=1000, create=True))
                 stack.enter_context(patch.object(frontend.platform, 'release', return_value=release))
                 stack.enter_context(patch.object(frontend.platform, 'freedesktop_os_release', return_value={'ID': 'ubuntu', 'VERSION_ID': '22.04'}))
                 stack.enter_context(patch.object(frontend, 'source_identity', return_value={'git_branch': 'main', 'source_dirty': False}))

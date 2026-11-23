@@ -13,7 +13,7 @@ from serial_curve_plan import load
 
 
 GIB = 2**30
-LABELS = dict(foreground_krita='Krita', raster_fft='Raster FFT', xz='XZ', array='Array', table='Table')
+LABELS = dict(foreground_krita='Krita', raster_fft='Raster FFT', raster='Raster calibration', xz='XZ', array='Array', table='Table')
 OOM = re.compile(r'out of memory|oom-kill:|killed process\s+\d+', re.I)
 KILL = re.compile(r'killed process\s+(\d+)\s+\((.*?)\)', re.I)
 
@@ -75,6 +75,9 @@ def review_completed_task(root, op, task, gui, provenance):
         if op == 'raster_fft':
             return verify_raster(root/op, provenance[op])
         if op != 'foreground_krita':
+            if provenance[op].get('workload_kind') == 'shaped':
+                from shaped_scene import verify as verify_shaped
+                return verify_shaped(root/op, provenance[op])
             from oomlab.workloads import verify
             return verify(provenance[op]['path'], root/op)
         from oomlab_krita_collect.validation import verify_pilot_events
@@ -89,7 +92,7 @@ def draw(root, t0, system, curves, kills, target):
     matplotlib.use('Agg')
     from matplotlib import pyplot as plt
     fig, (top, bottom) = plt.subplots(2, 1, figsize=(11, 7), sharex=True, layout='constrained')
-    variant = 'Raster' if 'raster_fft' in curves else 'XZ'
+    variant = 'Raster' if 'raster_fft' in curves or 'raster' in curves else 'XZ'
     fig.suptitle(f'{variant} baseline: swap off, no throttling or freezing', fontsize=15, fontweight='bold')
     age = lambda row: (int(row['monotonic_ns'])-t0)/1e9
     def plot(ax, rows, key, **style):
@@ -208,7 +211,7 @@ def review(root):
     (root/'validation.json').write_text(json.dumps(result, indent=2)+'\n', encoding='utf-8')
     victim_text=''.join(f"- 首页后 {stamp(row['monotonic_ns']):.3f} s。内核杀死 {row['victim_name']}（PID {row['victim_pid']}）。\n" for row in kills)
     launch_table='\n'.join(f"| {LABELS[op]} | {offsets[op]:.3f} s | {tasks.get(op, {}).get('submitted_s')} | {tasks.get(op, {}).get('actual_start_s')} |" for op in delays)
-    variant = '栅格' if 'raster_fft' in operations else 'XZ'
+    variant = '栅格' if 'raster_fft' in operations or 'raster' in operations else 'XZ'
     report=(f'# {variant} 负载无干预基线\n\n'
             f"| 核对项 | 结果 |\n|---|---|\n| OOM | {result['oom']} |\n"
             f"| `oom_kill` 增量 | {summary['global_oom_kill_delta']} |\n| 四项均通过校验 | {success} |\n"

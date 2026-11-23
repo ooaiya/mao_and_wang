@@ -20,7 +20,8 @@ def review(root):
         tasks[op]=dict(**r,success=False,sampled_peak_GiB=peak/2**30,actual_to_prior_peak_ratio=peak/p['models'][op]['peak_bytes'],
             outcome='not normally completed' if r.get('returncode')!=0 else 'completed before run failure')
     freezes=json.loads((root/'freeze_events.json').read_text()) if (root/'freeze_events.json').exists() else []
-    proofs={op:dict(freeze_count=sum(x['operation']==op and x['action']=='freeze' for x in freezes),resume_count=sum(x['operation']==op and x['action']=='resume' for x in freezes),intervals=[],transition_errors=['trial aborted; not a complete acceptance']) for op in ['xz','table','array']}
+    backgrounds=[op for op in p['models'] if op not in ('foreground_krita','foreground_system')]
+    proofs={op:dict(freeze_count=sum(x['operation']==op and x['action']=='freeze' for x in freezes),resume_count=sum(x['operation']==op and x['action']=='resume' for x in freezes),intervals=[],transition_errors=['trial aborted; not a complete acceptance']) for op in backgrounds}
     restored=json.loads((root/'swap_restoration.json').read_text())
     v=dict(success=False,experiment_complete=False,status=s['status'],error=s['error'],tasks=tasks,
         total_from_first_launch_s=(end-origin)/1e9,total_from_homepage_s=(end-t0)/1e9 if t0 else None,total_is_abort_latency_not_completion=True,
@@ -30,7 +31,21 @@ def review(root):
         sampling=s['collector'],freezer_proofs=proofs,foreground_background_thawed_overlap_s=None,
         review_source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
     (root/'validation.json').write_text(json.dumps(v,indent=2,ensure_ascii=False))
-    (root/'report.md').write_text('# 分段冻结未完成轮次\n\n**本轮失败，不能作为完成四任务的性能结果。**\n\n保护中止：首页后 %.3f 秒；从自动化启动计 %.3f 秒（这是中止耗时，不是完成耗时）。\n\n原因：%s\n\n全局OOM kill增量 %s；本轮进程组已清空 %s；正式样本Swap为0 %s；原Swap恢复 %s。\n\nXZ冻结 %d 次、恢复 %d 次。Table/Array尚未提交。退出码未被旧管理器记录的字段保持未知，不补造正常完成。\n\n原始CSV、决策、内核确认、源码摘要和保护中止日志全部保留。\n'%(v['total_from_homepage_s'],v['total_from_first_launch_s'],s['error'],s['global_oom_kill_delta'],s['all_groups_empty'],v['swap_zero_all_formal_samples'],restored['restored'],proofs['xz']['freeze_count'],proofs['xz']['resume_count']))
+    transitions='\n'.join(
+        f"- {op} 冻结 {proof['freeze_count']} 次，恢复 {proof['resume_count']} 次"
+        + ('。' if op in tasks else '，中止前未提交。')
+        for op, proof in proofs.items()
+    )
+    home_elapsed=v['total_from_homepage_s']
+    home_note=f'首页后 {home_elapsed:.3f} 秒，' if home_elapsed is not None else ''
+    (root/'report.md').write_text(
+        f"# 冻结并发未完成轮次\n\n**本轮提前结束。**\n\n"
+        f"{home_note}从自动化启动到中止共 {v['total_from_first_launch_s']:.3f} 秒。\n\n"
+        f"中止原因为 `{s['error']}`。全局 OOM kill 增量为 {s['global_oom_kill_delta']}。\n\n"
+        f"{transitions}\n\n"
+        f"进程组已清空 {s['all_groups_empty']}，正式样本 Swap 为 0 {v['swap_zero_all_formal_samples']}，"
+        f"原 Swap 已恢复 {restored['restored']}。原始采样和中止日志保存在本目录。\n",
+        encoding='utf-8')
     print(json.dumps(dict(success=False,error=s['error'],abort_elapsed_s=v['total_from_first_launch_s'])))
 
 if __name__=='__main__':

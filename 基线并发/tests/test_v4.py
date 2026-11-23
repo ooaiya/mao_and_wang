@@ -75,6 +75,22 @@ class AccountingTests(unittest.TestCase):
 class FreezerContractTests(unittest.TestCase):
     def manager_fixture(self,d):
         mount=Path(d);parent=mount/'delegated';parent.mkdir();cm=CgroupManager(parent,'oomlab_test',mount=mount);group=cm.root/'xz';group.mkdir();(group/'cgroup.freeze').write_text('0');(group/'cgroup.events').write_text('populated 1\nfrozen 0\n');cm.groups['xz']=(group,group.stat().st_ino);return cm,group
+    def test_shaped_raster_can_create_an_owned_group(self):
+        with tempfile.TemporaryDirectory() as d:
+            cm,_=self.manager_fixture(d)
+            for filename in ('cgroup.subtree_control','cgroup.controllers'):
+                (cm.root/filename).write_text('memory cpu io\n')
+            mkdir=Path.mkdir
+
+            def create_with_controls(group,*args,**kwargs):
+                mkdir(group,*args,**kwargs)
+                for name in ('memory.current','memory.events','cgroup.freeze','cgroup.events'):
+                    (group/name).touch()
+
+            with mock.patch.object(Path,'mkdir',create_with_controls):
+                group=cm.create('raster')
+            self.assertEqual(cm.checked('raster'),group)
+
     def test_freeze_requires_observed_confirmation(self):
         with tempfile.TemporaryDirectory() as d:
             cm,g=self.manager_fixture(d)

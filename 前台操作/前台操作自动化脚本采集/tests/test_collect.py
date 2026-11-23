@@ -233,5 +233,10 @@ class RepositoryLayoutTests(unittest.TestCase):
                      BACKGROUND/'configs/profiles.json'):
             self.assertTrue(path.is_file(),str(path))
         identity=source_identity()
-        self.assertEqual(identity['git_branch'],'main')
+        branch = subprocess.run(
+            ['git', 'symbolic-ref', '--quiet', '--short', 'HEAD'],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        self.assertIn(branch.returncode, (0, 1))
+        self.assertEqual(identity['git_branch'], branch.stdout.strip())
         self.assertFalse(identity['source_dirty'])

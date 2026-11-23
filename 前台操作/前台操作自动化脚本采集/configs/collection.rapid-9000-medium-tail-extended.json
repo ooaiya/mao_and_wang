@@ -64,8 +64,8 @@
     "completion_mode": "timed_window",
     "capture_window_s": 12,
     "pressure_profile": {
-      "pre_import_review_s": 630,
-      "post_close_review_s": 90,
+      "pre_import_review_s": 30,
+      "post_close_review_s": 30,
       "review_interval_s": 5,
       "post_close_settle_s": 10,
       "peak_reference_bytes": 12884901888,

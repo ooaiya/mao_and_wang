@@ -41,7 +41,7 @@ class CgroupManager:
         return parent
 
     def create(self, operation):
-        if operation not in {'foreground_krita','xz','table','array','raster_fft','probe'}:raise ValueError('unknown operation')
+        if operation not in {'foreground_krita','xz','table','array','raster','raster_fft','probe'}:raise ValueError('unknown operation')
         enabled=set((self.root/'cgroup.subtree_control').read_text().split());available=set((self.root/'cgroup.controllers').read_text().split())
         if 'memory' not in available:raise RuntimeError('task memory accounting unavailable')
         missing=({'memory','cpu','io'}&available)-enabled

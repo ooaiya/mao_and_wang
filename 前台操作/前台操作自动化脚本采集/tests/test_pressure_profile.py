@@ -65,7 +65,10 @@ class PressureProfileTests(unittest.TestCase):
         config=read(Path(__file__).parent/'fixtures/collection.rapid-9000.json')
         medium=script_contract(config=read(GUI/'configs/collection.rapid-9000-medium-tail-extended.json'))
         low_duration=medium['pressure_profile']['pre_import_review_s']
+        tail_duration=medium['pressure_profile']['post_close_review_s']
+        cadence=medium['pressure_profile']['review_interval_s']
         config['automation']['pressure_profile']['pre_import_review_s']=low_duration
+        config['automation']['pressure_profile']['post_close_review_s']=tail_duration
         contract=script_contract(config=config)
         asset=contract['prepared_document']['path']
         duration=contract['capture_window_s']
@@ -83,7 +86,7 @@ class PressureProfileTests(unittest.TestCase):
                                       'CANVAS_ZOOM_START','CANVAS_ZOOM_DONE'),1):
             event(kind,second)
         event('PRE_IMPORT_REVIEW_START',low_start,pid=42,duration_s=low_duration)
-        event('PRE_IMPORT_REVIEW_DONE',low_end,pid=42,duration_s=low_duration,zoom_cycles=126)
+        event('PRE_IMPORT_REVIEW_DONE',low_end,pid=42,duration_s=low_duration,zoom_cycles=low_duration//cadence)
         event('HIGH_DOCUMENT_OPEN_START',low_end+1,asset=asset)
         event('HIGH_DOCUMENT_SUBMITTED',low_end+3,asset=asset)
         event('HIGH_DOCUMENT_OPEN_DONE',high_open,asset=asset,verification='owned_document_title')
@@ -96,9 +99,10 @@ class PressureProfileTests(unittest.TestCase):
         event('HIGH_INSTANCE_EXIT',high_end+3,pid=42,returncode=0)
         event('KRITA_POST_PROCESS',high_end+7,pid=43)
         tail_start=high_end+9
-        event('POST_CLOSE_REVIEW_START',tail_start,pid=43,duration_s=90)
-        event('POST_CLOSE_REVIEW_DONE',tail_start+90,pid=43,duration_s=90,zoom_cycles=18)
-        event('KRITA_EXIT',tail_start+92,pid=43,returncode=0)
+        event('POST_CLOSE_REVIEW_START',tail_start,pid=43,duration_s=tail_duration)
+        event('POST_CLOSE_REVIEW_DONE',tail_start+tail_duration,pid=43,duration_s=tail_duration,
+              zoom_cycles=tail_duration//cadence)
+        event('KRITA_EXIT',tail_start+tail_duration+2,pid=43,returncode=0)
         verify_pilot_events(events,contract)
         events[-4]['pid']=42
         with self.assertRaisesRegex(ValueError,'exit/restart identity mismatch'):
@@ -117,10 +121,10 @@ class PressureProfileTests(unittest.TestCase):
 
         samples=[sample(t,42,2**30) for t in (low_start,low_end)]
         samples.extend(sample(t,42,12*2**30) for t in (low_end+3,high_end))
-        samples.extend(sample(t,43,5*2**29) for t in (tail_start,tail_start+39,tail_start+90))
+        samples.extend(sample(t,43,5*2**29) for t in (tail_start,tail_start+tail_duration/2,tail_start+tail_duration))
         result=assess_pressure_profile(samples,events,medium,.5)
         self.assertTrue(result['valid'],result['errors'])
-        self.assertEqual(result['windows']['post_close']['window_s'],90)
+        self.assertEqual(result['windows']['post_close']['window_s'],tail_duration)
         samples[4]['memory_current']=2*2**30-1
         result=assess_pressure_profile(samples,events,medium,.5)
         self.assertIn('tail review charge outside the configured range',result['errors'])

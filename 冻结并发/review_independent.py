@@ -3,16 +3,17 @@ import bisect,csv,hashlib,json,subprocess,sys
 from pathlib import Path
 root=Path(sys.argv[1]);h=Path.home();summary=json.loads((root/'summary.json').read_text())
 plan_path=root/'planning/plan.json'
-realtime_mode=summary.get('runtime_policy',{}).get('name')=='realtime_freezer'
-if summary['status']!='EXECUTED' and (realtime_mode or not plan_path.is_file() or not summary['tasks']):
+if summary['status']!='EXECUTED' and (not plan_path.is_file() or not summary['tasks']):
     evidence=dict(summary,success=False,experiment_complete=False)
     (root/'validation.json').write_text(json.dumps(evidence,indent=2))
-    report=(f"# 实验未完成\n\n错误为 `{summary['error']}`。原始采样和事件保存在本轮目录。\n" if realtime_mode
-            else f"# 实验启动失败\n\n未完成正式测量。错误为 `{summary['error']}`。\n")
+    report=f"# 实验启动失败\n\n未完成正式测量。错误为 `{summary['error']}`。\n"
     (root/'report.md').write_text(report,encoding='utf-8')
     raise SystemExit(1)
 plan=json.loads(plan_path.read_text())
+if plan.get('source_kind') not in ('MEASURED_INDEPENDENT_PRIOR','MEASURED_SERIAL_CURVES','MEASURED_INDEPENDENT_CURVES'):
+    raise SystemExit(f"Unsupported freezer plan source: {plan.get('source_kind')!r}")
 serial_curves=plan.get('source_kind')=='MEASURED_SERIAL_CURVES'
+independent_curves=plan.get('source_kind')=='MEASURED_INDEPENDENT_CURVES'
 priority_mode=plan.get('execution_mode')=='priority'
 run_on_submit=plan.get('background_start')=='run_on_submit'
 if summary['status']!='EXECUTED':
@@ -32,6 +33,15 @@ def step(points,t):
 
 provenance=json.loads((root/'input_provenance.json').read_text());unchanged={};verification={}
 for op,v in provenance.items():
+    if v.get('workload_kind')=='shaped':
+        from shaped_scene import reference_unchanged, verify as verify_shaped
+        try:
+            unchanged[op]=reference_unchanged(v)
+            verification[op]=verify_shaped(root/op,v) if summary['tasks'].get(op,{}).get('returncode')==0 else dict(ok=False,reason='task not complete')
+        except (OSError,ValueError) as error:
+            unchanged.setdefault(op,False)
+            verification[op]=dict(ok=False,error=str(error))
+        continue
     if op=='raster_fft':
         from raster_priority import verify_raster
         unchanged[op]=sha(v['worker'])==v['worker_sha256'] and all(
@@ -52,7 +62,7 @@ by={e['kind']:e for e in gui if 'kind' in e};phases=all(any(e.get('kind')=='phas
 window=json.loads((root/'foreground_config.json').read_text())['automation']['capture_window_s']
 verification['foreground_krita']=dict(ok=phases and by.get('KRITA_EXIT',{}).get('returncode')==0 and by.get('CAPTURE_WINDOW_DONE',{}).get('actual_elapsed_s',0)>=window,
     all_stages_pass=phases,timed_window_s=by.get('CAPTURE_WINDOW_DONE',{}).get('actual_elapsed_s'),import_layers_verified=False)
-if serial_curves or realtime_mode:
+if serial_curves or independent_curves:
     source=json.loads((root/'source_provenance.json').read_text())['foreground_source']
     sys.path.insert(0,str(Path(source)/'前台操作/前台操作自动化脚本采集'))
     from oomlab_krita_collect.validation import verify_pilot_events
@@ -69,11 +79,11 @@ if serial_curves or realtime_mode:
         verification['foreground_krita'].update(ok=False,error=str(error))
 
 ledger=[]
-if not (priority_mode or realtime_mode):
+if not priority_mode:
     ledger_name='continuation_ledger.tsv' if serial_curves else 'native_ledger.tsv'
     with (root/'planning'/ledger_name).open() as f:ledger=list(csv.DictReader(f,delimiter='\t'))
 ledger_errors=[];models=plan.get('models',{});budget=plan['budget']
-if priority_mode or realtime_mode:
+if priority_mode:
     releases={}
 elif serial_curves:
     releases=plan['continuation']['release_after_foreground_exit_s']
@@ -175,11 +185,12 @@ for op in backgrounds:
     overlap_with_foreground[op]=sum(max(0,min(end,foreground_interval[1])-max(start,foreground_interval[0])) for start,end in intervals if end is not None)/1e9
 serial_curve_audit=None
 priority_audit=None
-if serial_curves:
+if serial_curves or independent_curves:
     errors=[]
-    reference=Path(plan['serial_run'])
-    for rel,expected in plan['serial_hashes'].items():
-        if sha(reference/rel)!=expected:errors.append('serial input hash differs: '+rel)
+    reference=Path(plan['independent_run' if independent_curves else 'serial_run'])
+    hashes=plan['independent_hashes' if independent_curves else 'serial_hashes']
+    for rel,expected in hashes.items():
+        if sha(reference/rel)!=expected:errors.append('reference input hash differs: '+rel)
     if priority_mode:
         from priority_policy import audit_decisions
         checkpoint=summary['runtime_policy']['confirmed_checkpoint_ns']
@@ -248,24 +259,17 @@ freezer_proofs_ok=all(not p['transition_errors'] and p['frozen_cpu_delta_usec']<
                       (run_on_submit or (p['freeze_confirmed'] and p['resume_confirmed'] and p['frozen_sample_count']>0))
                       for p in proofs.values())
 success=summary['status']=='EXECUTED' and len(tasks)==4 and all(r['success'] for r in tasks.values()) and summary['all_groups_empty'] and summary['global_oom_kill_delta']==0 and not any(cg_oom.values()) and journal.returncode==0 and not oom and no_swap and swap_restoration['restored'] and not summary['collector']['errors'] and not ledger_errors and freezer_proofs_ok and (segmented_audit is None or bool(segmented_audit['rows']) and not segmented_audit['errors']) and (offline_audit is None or not offline_audit['errors']) and (serial_curve_audit is None or not serial_curve_audit['errors']) and (priority_audit is None or not priority_audit['errors'])
-realtime_audit=None
-if realtime_mode:
-    from realtime_audit import audit
-    try:realtime_audit=audit(root,plan,summary,freezes)
-    except (OSError,ValueError,KeyError,TypeError) as error:
-        realtime_audit=dict(errors=[repr(error)],ticks=0,freeze_count=0)
-    success=success and not realtime_audit['errors']
 result=dict(success=success,tasks=tasks,output_verification=verification,input_files_unchanged=unchanged,freezer_proofs=proofs,
     total_from_homepage_s=summary['total_from_homepage_s'],total_from_first_launch_s=summary['total_from_first_launch_s'],global_oom_kill_delta=summary['global_oom_kill_delta'],cgroup_oom_kill=cg_oom,
     swap_zero_all_formal_samples=no_swap,swap_restoration=swap_restoration,kernel_journal_read_ok=journal.returncode==0,kernel_oom_records=oom,
-    independent_ledger_recheck=None if priority_mode or realtime_mode else dict(rows=len(ledger),errors=ledger_errors,native_status=plan['native']['status'],optimality_proven=plan['native']['status']=='OPTIMAL',role='Table and Array continuation after foreground exit' if serial_curves else 'whole-job reference; segmented execution is audited separately'),segmented_decision_audit=segmented_audit,
+    independent_ledger_recheck=None if priority_mode else dict(rows=len(ledger),errors=ledger_errors,native_status=plan['native']['status'],optimality_proven=plan['native']['status']=='OPTIMAL',role='Table and Array continuation after foreground exit' if serial_curves else 'whole-job reference; segmented execution is audited separately'),segmented_decision_audit=segmented_audit,
     sampling=summary['collector'],source_kind=plan['source_kind'],baseline_rerun=False,review_source_sha256=sha(__file__),foreground_background_thawed_overlap_s=overlap_with_foreground,
     offline_plan_audit=offline_audit,serial_curve_audit=serial_curve_audit,priority_audit=priority_audit,
-    optimization_success=success and (summary['total_from_first_launch_s']<plan['reference']['total_s'] if serial_curves else bool(offline_audit and offline_audit['real_xz_progress_while_foreground_alive'])),
+    optimization_success=None if independent_curves else success and (summary['total_from_first_launch_s']<plan['reference']['total_s'] if serial_curves else bool(offline_audit and offline_audit['real_xz_progress_while_foreground_alive'])),
     system_min_available_GiB=min(int(r['mem_available_bytes']) for r in system)/2**30,system_pressure_peak_GiB=max(int(r['pressure_used_bytes']) for r in system)/2**30)
 
 import matplotlib;matplotlib.use('Agg');import matplotlib.pyplot as plt
-colors=dict(foreground_krita='tab:blue',xz='tab:orange',raster_fft='tab:orange',table='tab:green',array='tab:red')
+colors=dict(foreground_krita='tab:blue',xz='tab:orange',raster_fft='tab:orange',raster='tab:orange',table='tab:green',array='tab:red')
 fig,axs=plt.subplots(3,1,figsize=(12,10),sharex=True,gridspec_kw=dict(height_ratios=[2,2,1]))
 x=[(int(r['monotonic_ns'])-t0)/1e9 for r in system]
 for key,label in [('pressure_used_bytes','RAM - MemAvailable'),('mem_available_bytes','MemAvailable')]:axs[0].plot(x,[int(r[key])/2**30 for r in system],label=label,lw=1)
@@ -284,7 +288,7 @@ for i,(op,r) in enumerate(tasks.items()):
 axs[2].set_yticks(range(4),list(tasks));axs[2].set_xlabel('Seconds from automatic homepage readiness; gray = frozen, color = executing')
 for ax in axs:ax.grid(alpha=.2)
 for ax in axs[:2]:ax.set_ylabel('GiB');ax.legend(fontsize=8)
-title='Real-time priority freezer' if realtime_mode else ('Freezer plan from measured serial curves' if serial_curves else 'Independent-prior freezer experiment')
+title='Freezer plan from measured serial curves' if serial_curves else 'Independent-prior freezer experiment'
 axs[0].set_title(title+' | Swap OFF | all checks passed = '+str(success))
 fig.tight_layout();fig.savefig(root/'freezer_memory.png',dpi=160);plt.close(fig)
 fig,axs=plt.subplots(4,1,figsize=(11,10))
@@ -297,37 +301,20 @@ for ax,(op,r) in zip(axs,tasks.items()):
 axs[-1].set_xlabel('Seconds from actual execution start (foreground: automation launch); frozen waiting excluded');fig.tight_layout();fig.savefig(root/'freezer_tasks.png',dpi=160);plt.close(fig)
 
 table='\n'.join('|%s|%.3f|%.3f|%.3f|%.3f|%s|'%(op,r['submitted_homepage_s'],r.get('frozen_s',0),r['execution_wall_s'],r['sampled_peak_GiB'],r['success']) for op,r in tasks.items())
-if realtime_mode:
-    result.update(realtime_audit=realtime_audit, optimization_success=None)
-    report=f"""# 实时反馈分级冻结
-
-四项任务及调度校验通过 **{success}**。从前台启动到整批结束用时 **{summary['total_from_first_launch_s']:.3f} 秒**。
-
-|任务|实际提交（首页后秒）|冻结（秒）|执行跨度（秒）|cgroup 采样峰值（GiB）|成功|
-|---|---:|---:|---:|---:|---|
-{table}
-
-- 首次实际执行均在分配门放行之后。实测冻结请求须晚于任务自身的 `task_start`，前台始终受保护。
-- 有效现场决策 {realtime_audit['ticks']} 次，冻结 {realtime_audit['freeze_count']} 次。复核错误为 {realtime_audit['errors']}。
-- 最低 `MemAvailable` 为 {result['system_min_available_GiB']:.3f} GiB。全局 OOM kill 增量为 {summary['global_oom_kill_delta']}。正式测量无 Swap 校验为 {no_swap}，原 Swap 恢复为 {swap_restoration['restored']}。
-
-[验证结果](validation.json) · [现场决策](realtime_decisions.jsonl) · [内存与执行曲线](freezer_memory.png)
-"""
-    (root/'report.md').write_text(report,encoding='utf-8')
-    save('validation.json',result)
-    print(json.dumps(dict(success=success,audit=realtime_audit)))
-    raise SystemExit(0 if success else 1)
 if priority_mode:
-    serial_total=plan['reference']['total_s']
     measured=summary['total_from_first_launch_s']
-    result['serial_comparison']=dict(serial_s=serial_total,freezer_s=measured,shorter_s=serial_total-measured)
-    serial_label='已有同条件串行轮'
+    comparison_text=''
+    if serial_curves:
+        serial_total=plan['reference']['total_s']
+        result['serial_comparison']=dict(serial_s=serial_total,freezer_s=measured,shorter_s=serial_total-measured)
+        serial_label='按实测单任务耗时换算的串行参考' if 'raster_reference' in plan else '已有同条件串行轮'
+        comparison_text=f'，{serial_label}为 {serial_total:.3f} 秒'
     if 'raster_reference' in plan:
-        serial_label='按实测单任务耗时换算的串行参考'
-        result['serial_comparison']['scope']=plan['reference']['scope']
+        if serial_curves:
+            result['serial_comparison']['scope']=plan['reference']['scope']
         contexts=root/'raster_freeze_context.json'
         result['raster_freeze_context']=json.loads(contexts.read_text()) if contexts.exists() else []
-    else:
+    elif 'xz' in tasks:
         xz=tasks['xz']
         input_size=provenance['xz']['manifest'].get('size_bytes')
         result['xz_input_mib_per_thawed_second']=(input_size/2**20/xz['unfrozen_wall_s']
@@ -336,7 +323,7 @@ if priority_mode:
                        if run_on_submit else '后台按提交偏移先冻结，预算稳定通过后开始执行。')
     report=f"""# 按内存压力分级的冻结并发
 
-四项任务及输出校验通过 **{success}**。本轮总耗时 {measured:.3f} 秒，{serial_label}为 {serial_total:.3f} 秒。
+四项任务及输出校验通过 **{success}**。本轮总耗时 {measured:.3f} 秒{comparison_text}。
 
 |任务|实际提交（首页后秒）|冻结（秒）|执行跨度（秒）|cgroup 采样峰值（GiB）|成功|
 |---|---:|---:|---:|---:|---|
@@ -351,7 +338,7 @@ if priority_mode:
 """
     (root/'report.md').write_text(report,encoding='utf-8')
     save('validation.json',result)
-    print(json.dumps(dict(success=success,comparison=result['serial_comparison'],audit=priority_audit)))
+    print(json.dumps(dict(success=success,comparison=result.get('serial_comparison'),audit=priority_audit)))
     raise SystemExit(0 if success else 1)
 if serial_curves:
     serial_total=plan['reference']['total_s']

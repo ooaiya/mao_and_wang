@@ -10,6 +10,16 @@ def sha(p):
     return d.hexdigest()
 verification={};unchanged={}
 for op,v in provenance.items():
+    if v.get('workload_kind')=='shaped':
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'冻结并发'))
+        from shaped_scene import reference_unchanged, verify as verify_shaped
+        try:
+            unchanged[op]=reference_unchanged(v)
+            verification[op]=verify_shaped(root/op,v) if s['tasks'].get(op,{}).get('returncode')==0 else dict(ok=False,reason='task did not complete')
+        except (OSError,ValueError) as error:
+            unchanged.setdefault(op,False)
+            verification[op]=dict(ok=False,error=str(error))
+        continue
     unchanged[op]=sha(Path(v['path'])/v['manifest']['file'])==v['input_sha256']
     try:verification[op]=verify(v['path'],root/op) if s['tasks'].get(op,{}).get('returncode')==0 else dict(ok=False,reason='task did not complete')
     except Exception as e:verification[op]=dict(ok=False,error=repr(e))
@@ -90,13 +100,13 @@ for i,(op,r) in enumerate(tasks.items()):
     a=(r['start_ns']-t0)/1e9;b=(r['empty_confirmed_ns']-t0)/1e9
     for ax in axs:ax.axvline(a,color='gray',ls=':',lw=.7)
     if b-a>100:axs[0].text((a+b)/2,axs[0].get_ylim()[1]*.94,op,ha='center',fontsize=9)
-if 'table' in tasks and 'array' in tasks:
+if 'xz' in tasks and 'table' in tasks and 'array' in tasks:
     a=(tasks['table']['start_ns']-t0)/1e9
     axs[0].annotate('Table -> Array\n(final %.1f s)'%(tasks['table']['duration_s']+tasks['array']['duration_s']),
         xy=(a,.91),xycoords=('data','axes fraction'),xytext=(a-210,.67),textcoords=('data','axes fraction'),
         ha='center',fontsize=9,arrowprops=dict(arrowstyle='->',color='gray',lw=.8))
 for ax in axs:ax.legend(fontsize=9);ax.set_ylabel('GiB');ax.grid(alpha=.2)
-axs[0].set_title('Serial test: Krita -> XZ -> Table -> Array; all tasks succeeded: '+str(success));axs[1].set_xlabel('Seconds from first workload launch')
+axs[0].set_title('Serial test: '+' -> '.join(s['order'])+' | success: '+str(success));axs[1].set_xlabel('Seconds from first workload launch')
 fig.tight_layout();fig.savefig(root/'serial_memory.png',dpi=160);plt.close(fig)
 fig,axs=plt.subplots(4,1,figsize=(11,9))
 for ax,(op,r) in zip(axs,tasks.items()):
@@ -105,8 +115,10 @@ for ax,(op,r) in zip(axs,tasks.items()):
     ax.set_title(f"{op}: {duration:.3f} s, peak {r['sampled_peak_GiB']:.3f} GiB, success={r['success']}");ax.set_ylabel('GiB');ax.grid(alpha=.2);ax.legend(fontsize=8)
 axs[-1].set_xlabel('Seconds from each task launch');fig.tight_layout();fig.savefig(root/'serial_tasks.png',dpi=160)
 rows='\n'.join(f"|{op}|{r['duration_s']:.3f}|{r['sampled_peak_GiB']:.6f}|{r['returncode']}|{r['success']}|" for op,r in tasks.items())
+profile=config['automation'].get('pressure_profile',{})
 foreground_description=(
-    '前台使用已验收的延长峰前中压配置，单层浏览 630 秒、高压 46 层 ORA、峰后 7 层 ORA 浏览 90 秒。'
+    f"前台使用已验收的三阶段配置。单层浏览 {profile['pre_import_review_s']} 秒，高压使用 46 层 ORA，"
+    f"峰后使用 7 层 ORA 浏览 {profile['post_close_review_s']} 秒。"
     if prepared else '前台使用 9000×9000、45 张素材与 1350 秒定时自动化。'
 )
 swap_description=(

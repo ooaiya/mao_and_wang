@@ -1,6 +1,6 @@
 # 低–高–中前台素材
 
-`OOM_assets/` 保存原实验 VM 使用的 ORA。在本目录运行 `sha256sum -c SHA256SUMS` 核对字节摘要。
+从交接资料中取得原实验 VM 使用的 ORA，将其放在本目录的 `OOM_assets/` 下。运行 `sha256sum -c SHA256SUMS` 核对字节摘要。
 
 | 文件 | 场景与尺寸 |
 | --- | --- |

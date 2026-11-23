@@ -28,23 +28,29 @@ def wait_empty(cg,timeout=20):
     while members(cg):
         if time.monotonic()>end:raise RuntimeError('descendants remain in '+str(cg))
         time.sleep(.05)
-def validate_sequence(records):
-    if list(records)!=ORDER:return False
-    return all(records[b]['start_ns']>=records[a]['empty_confirmed_ns'] for a,b in zip(ORDER,ORDER[1:]))
+def validate_sequence(records,order=ORDER):
+    if list(records)!=order:return False
+    return all(records[b]['start_ns']>=records[a]['empty_confirmed_ns'] for a,b in zip(order,order[1:]))
 
 class Serial:
     background_input_ops = ORDER[1:]
-    def __init__(self,out,home,foreground_run=None,foreground_source=None,no_swap=False,*,foreground_inputs=None):
+    def __init__(self,out,home,foreground_run=None,foreground_source=None,no_swap=False,*,shaped_run=None):
         self.out=Path(out);self.out.mkdir(parents=True,exist_ok=False);self.home=Path(home)
         self.foreground_run=Path(foreground_run) if foreground_run else None
         self.foreground_source=Path(foreground_source) if foreground_source else None
-        self.foreground_inputs=foreground_inputs
+        self.shaped_reference=Path(shaped_run) if shaped_run else None
+        if self.shaped_reference:
+            from shaped_scene import TASKS
+            self.background_input_ops=TASKS
+        self.order=['foreground_krita',*getattr(self,'background_ops',self.background_input_ops)]
         self.no_swap=no_swap
         os.chown(self.out,1000,1000);self.timeline=Timeline(self.out,self.out.name)
         self.groups={};self.processes={};self.logs=[];self.records={};self.monitor=None;self.inhibitor=None;self.oom_before=None
         self.env=dict(os.environ,HOME=str(self.home),USER='ooaiya',LOGNAME='ooaiya',DISPLAY=':0',XDG_RUNTIME_DIR='/run/user/1000',
              DBUS_SESSION_BUS_ADDRESS='unix:path=/run/user/1000/bus',WAYLAND_DISPLAY='wayland-0',XDG_SESSION_TYPE='wayland',
              QT_QPA_PLATFORM='xcb',QT_LINUX_ACCESSIBILITY_ALWAYS_ON='1',LC_ALL='C.UTF-8')
+        if self.shaped_reference:
+            self.env.update(OPENBLAS_NUM_THREADS='1',OMP_NUM_THREADS='1',MKL_NUM_THREADS='1')
     def event(self,kind,op='',**kw):
         self.timeline.emit(kind,op,**kw);print(json.dumps(dict(event=kind,op=op,**kw)),flush=True)
     def prepare(self,start_monitor=True):
@@ -58,56 +64,44 @@ class Serial:
             if fields=={'Name':'ooaiya','Seat':'seat0','LockedHint':'no','Type':'wayland'}:
                 self.env['XDG_SESSION_ID']=session;break
         else:raise RuntimeError('unlocked ooaiya Wayland desktop session required')
-        if self.foreground_inputs:
-            settings_path,assets_path=self.foreground_inputs
-            self.source=self.foreground_source
-            self.config=json.loads(settings_path.read_text(encoding='utf-8'))
-        elif self.foreground_run:
-            prior=self.foreground_run
-            review=json.loads((prior/'summary.json').read_text())
-            if not review['valid'] or not review.get('pressure_profile',{}).get('valid'):
-                raise RuntimeError('foreground run lacks a passing independent pressure profile')
-            self.source=self.foreground_source
-            self.config=json.loads((prior/'config.snapshot.json').read_text())
-        else:
-            raise ValueError('a verified low–high–medium foreground run or config/manifest pair is required')
+        prior=self.foreground_run
+        if not prior:
+            raise ValueError('a verified low–high–medium foreground run is required')
+        review=json.loads((prior/'summary.json').read_text())
+        if not review['valid'] or not review.get('pressure_profile',{}).get('valid'):
+            raise RuntimeError('foreground run lacks a passing independent pressure profile')
+        self.source=self.foreground_source
+        self.config=json.loads((prior/'config.snapshot.json').read_text())
         if not all(key in self.config['automation'] for key in ('prepared_document', 'tail_document')):
             raise ValueError('a low–high–medium foreground configuration is required')
         self.gui=self.source/'前台操作/前台操作自动化脚本采集'
-        if not self.foreground_inputs:assets_path=prior/'assets_manifest.json'
-        assets=json.loads(assets_path.read_text(encoding='utf-8'))
+        assets=json.loads((prior/'assets_manifest.json').read_text(encoding='utf-8'))
         inputs=[assets['ora'],*assets['png_files']]
-        if self.foreground_run or self.foreground_inputs:
-            settings=self.config['automation']
-            contract=assets['script_contract']
-            if any(settings.get(key)!=contract.get(key) for key in
-                   ('prepared_document','tail_document','pressure_profile','capture_window_s',
-                    'tile_memory_percent','tail_charge_range_bytes')):
-                raise RuntimeError('verified foreground configuration/asset contract mismatch')
-            inputs.extend(assets[key] for key in ('prepared_ora','tail_ora') if key in assets)
-        elif assets['png_count']!=45:raise RuntimeError('wrong number of input PNGs')
+        settings=self.config['automation']
+        contract=assets['script_contract']
+        if any(settings.get(key)!=contract.get(key) for key in
+               ('prepared_document','tail_document','pressure_profile','capture_window_s',
+                'tile_memory_percent','tail_charge_range_bytes')):
+            raise RuntimeError('verified foreground configuration/asset contract mismatch')
+        inputs.extend(assets[key] for key in ('prepared_ora','tail_ora') if key in assets)
         for f in inputs:
             if digest(f['path'])!=f['sha256']:raise RuntimeError('foreground input changed: '+f['path'])
         provenance=self.background_provenance()
         self.provenance=provenance;save(self.out/'input_provenance.json',provenance);save(self.out/'foreground_assets.json',assets)
         save(self.out/'foreground_config.json',self.config)
         (self.out/'kritarc.before').write_bytes((self.home/'.config/kritarc').read_bytes())
-        if self.foreground_inputs:
-            files=[self.gui/'scripts/krita_auto.py',*(self.gui/'oomlab_krita_collect').glob('*.py')]
-            original=dict(files={p.relative_to(self.source).as_posix():digest(p) for p in files})
-        else:
-            original=json.loads((prior/'metadata.json').read_text())['source']
-            hashes={rel:digest(self.source/rel) for rel in original['files']}
-            if hashes!=original['files']:raise RuntimeError('foreground code differs from verified timed implementation')
+        original=json.loads((prior/'metadata.json').read_text())['source']
+        hashes={rel:digest(self.source/rel) for rel in original['files']}
+        if hashes!=original['files']:raise RuntimeError('foreground code differs from verified timed implementation')
         save(self.out/'source_provenance.json',dict(foreground=original,runner_sha256=digest(__file__),
-            foreground_source=str(self.source),foreground_independent_run=None if self.foreground_inputs else str(prior),
+            foreground_source=str(self.source),foreground_independent_run=str(prior),
             bg_workloads_sha256=digest(self.home/'bg/oomlab/workloads.py')))
         if self.no_swap:
             save(self.out/'swap_state.json',dict(entries=active_swap(),proc_swaps=Path('/proc/swaps').read_text()))
             subprocess.run(['swapoff','-a'],check=True)
             if meminfo().get('SwapTotal',0)!=0:raise RuntimeError('Swap is not fully disabled')
         save(self.out/'environment.json',dict(meminfo=meminfo(),swaps=Path('/proc/swaps').read_text(),kernel=os.uname().release,
-             order=ORDER,swap_changed=self.no_swap,cache_policy='normal retained cache; no cache dropping or memory reclaim between tasks'))
+             order=self.order,swap_changed=self.no_swap,cache_policy='normal retained cache; no cache dropping or memory reclaim between tasks'))
         parent=CgroupManager.current();CgroupManager.prepare_delegation(parent);self.cm=CgroupManager(parent,'oomlab_'+getattr(self,'run_kind','serial')+'_'+str(os.getpid()))
         self.oom_before=counters('/proc/vmstat')['oom_kill']
         self.inhibitor=subprocess.Popen(['gnome-session-inhibit','--inhibit','idle','--reason','Serial foreground experiment','/bin/sleep','4500'],
@@ -115,6 +109,9 @@ class Serial:
         if start_monitor:
             self.monitor=MemoryMonitor(self.out,self.timeline,self.groups,interval_s=.05);self.monitor.start()
     def background_provenance(self):
+        if self.shaped_reference:
+            from shaped_scene import provenance
+            return provenance(self.shaped_reference)
         provenance={}
         for op in self.background_input_ops:
             data=self.home/'oom_data'/('array_large' if op=='array' else op+'_large');m=json.loads((data/'manifest.json').read_text())
@@ -122,6 +119,13 @@ class Serial:
             if actual!=m['sha256'] or actual!=EXPECTED[op]:raise RuntimeError('background input changed: '+op)
             provenance[op]=dict(path=str(data),manifest=m,input_sha256=actual)
         return provenance
+
+    def background_command(self,op):
+        python=self.home/'bg/.venv/bin/python'
+        if self.shaped_reference:
+            from shaped_scene import command
+            return command(op,python,self.out/op/'output.json',self.provenance[op])
+        return [str(python),'-m','oomlab.workloads',self.provenance[op]['path'],str(self.out/op),'--operation-id',op]
 
     def launch(self,op,command):
         if any(members(v['cgroup_path']) for v in self.groups.values()):raise RuntimeError('previous task boundary not empty')
@@ -156,7 +160,7 @@ class Serial:
             self.launch('foreground_krita',[str(self.home/'bg/.venv/bin/python'),'-u',str(self.gui/'scripts/krita_auto.py'),self.config['asset']['path'],
                 '--layers-dir',self.config['pilot']['layers_dir'],'--settings',str(self.out/'foreground_config.json'),
                 '--assets-manifest',str(self.out/'foreground_assets.json'),'--process-record',str(self.out/'foreground_krita/process.json')])
-            for op in ORDER[1:]:self.launch(op,[str(self.home/'bg/.venv/bin/python'),'-m','oomlab.workloads',self.provenance[op]['path'],str(self.out/op),'--operation-id',op])
+            for op in self.order[1:]:self.launch(op,self.background_command(op))
         except BaseException as e:error=repr(e);self.event('serial_error',error=error)
         finally:
             # Close only this run's process groups, including orphaned GUI helpers.
@@ -169,9 +173,9 @@ class Serial:
             if self.inhibitor:self.inhibitor.terminate();self.inhibitor.wait(timeout=5)
             for log in self.logs:log.close()
             finish=time.monotonic_ns();workload_finish=max((r.get('empty_confirmed_ns',r['start_ns']) for r in self.records.values()),default=finish)
-            result=dict(status='EXECUTED' if error is None else 'FAILED',error=error,order=ORDER,tasks=self.records,
+            result=dict(status='EXECUTED' if error is None else 'FAILED',error=error,order=self.order,tasks=self.records,
                 T0_monotonic_ns=self.timeline.t0_ns,total_workload_wall_s=(workload_finish-self.timeline.t0_ns)/1e9 if self.timeline.t0_ns else None,
-                all_groups_empty=all(not members(v['cgroup_path']) for v in self.groups.values()),strict_serial=validate_sequence(self.records),collector=stats,
+                all_groups_empty=all(not members(v['cgroup_path']) for v in self.groups.values()),strict_serial=validate_sequence(self.records,self.order),collector=stats,
                 global_oom_kill_delta=counters('/proc/vmstat')['oom_kill']-self.oom_before if self.oom_before is not None else None,
                 swap_changed=self.no_swap,swaps_after=Path('/proc/swaps').read_text(),note='output verification and final success are computed after sampling, not during the next workload')
             try:
@@ -184,7 +188,10 @@ class Serial:
 if __name__=='__main__':
     a=argparse.ArgumentParser();a.add_argument('--output',required=True);a.add_argument('--home',default='/home/ooaiya')
     a.add_argument('--foreground-run',required=True);a.add_argument('--foreground-source',required=True);a.add_argument('--no-swap',action='store_true')
+    a.add_argument('--shaped-run',type=Path)
     args=a.parse_args()
+    if args.shaped_run and not args.no_swap:a.error('--shaped-run requires --no-swap for comparable results')
     def interrupt(signum,frame):raise KeyboardInterrupt('termination signal')
     signal.signal(signal.SIGTERM,interrupt)
-    raise SystemExit(Serial(args.output,args.home,args.foreground_run,args.foreground_source,args.no_swap).run())
+    raise SystemExit(Serial(args.output,args.home,args.foreground_run,args.foreground_source,args.no_swap,
+                            shaped_run=args.shaped_run).run())

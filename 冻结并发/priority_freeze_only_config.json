@@ -18,10 +18,14 @@
       "table": 10
     },
     "emergency_floor_bytes": null,
-    "headroom_bytes": 134217728,
-    "allocation_margin_bytes": 33554432,
     "max_sample_gap_s": 0.6,
-    "memory_high": false,
+    "freeze_prediction": {
+      "horizon_s": 2.5,
+      "reserve_bytes": 524288000,
+      "resume_margin_bytes": 268435456,
+      "phase_search_s": {"default": 2.0, "foreground_krita": 20.0},
+      "level_tolerance_bytes": 67108864
+    },
     "foreground_checkpoint": {
       "event": "HIGH_INSTANCE_EXIT",
       "identity_event": "KRITA_PROCESS"

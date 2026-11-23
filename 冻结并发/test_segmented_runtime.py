@@ -1,7 +1,8 @@
 """Fake-kernel lifecycle tests: no VM, GUI, Swap, or real cgroup operations."""
-import json,tempfile,threading,unittest
+import io,json,tempfile,threading,unittest
 from pathlib import Path
 from unittest.mock import Mock,patch
+from priority_policy import policy_from_plan
 from segmented_runner import SegmentedFreezer
 from segmented_scheduler import TaskClock,SegmentPolicy,audit_decisions
 from test_segmented import model,config
@@ -10,6 +11,7 @@ class LifecycleTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);p=Path(self.temp.name)
         (p/'memory.current').write_text('100');(p/'cpu.stat').write_text('usage_usec 20\n')
+        (p/'memory.stat').write_text('anon 80\n')
         self.r=object.__new__(SegmentedFreezer);r=self.r
         r.out=p;r.lock=threading.RLock();r.done=set();r.clocks={'xz':TaskClock()};r.policy_config=config()
         r.records={'xz':dict(freeze_confirmed_ns=0,state='FROZEN',pause_intervals_ns=[[0,None]],running_intervals_ns=[])}
@@ -29,6 +31,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertAlmostEqual(r.records['xz']['frozen_s'],95)
         self.assertGreaterEqual(r.clocks['xz'].age(100),age)
         self.assertEqual([x['memory_current_bytes'] for x in r.freeze_rows],[100,100,100])
+        self.assertEqual([x['anonymous_bytes'] for x in r.freeze_rows],[80,80,80])
     def test_priority_task_starts_on_submit_then_can_freeze_and_resume(self):
         r=self.r
         r.serial_run=Path('serial')
@@ -39,6 +42,7 @@ class LifecycleTests(unittest.TestCase):
         launch.assert_called_once_with('xz',freeze_on_submit=False)
         self.assertEqual(r.clocks['xz'].state,'RUNNING')
         self.assertEqual(r.records['xz']['running_intervals_ns'],[[10_000_000_000,None]])
+        r.records['xz']['actual_start_ns']=10_200_000_000
         r.cm.set_frozen.assert_not_called()
         self.now=11
         r.transition('xz',True,'priority_pressure')
@@ -47,6 +51,92 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(r.records['xz']['release_confirmed_ns'],10_000_000_000)
         self.assertEqual(r.records['xz']['frozen_s'],1)
         self.assertEqual([event['action'] for event in r.freeze_rows],['freeze','resume'])
+        self.assertAlmostEqual(r.prediction_age('xz',12_500_000_000,0),1.3)
+    def test_priority_runner_requests_predicted_freeze_and_logs_the_kernel_proof(self):
+        r=self.r
+        r.timeline=Mock(t0_ns=9_000_000_000)
+        r.background_ops=('xz',)
+        r.high_exit_ns=None
+        r.last_decision=0
+        r.policy_config['guard_interval_s']=.2
+        r.clocks['xz'].resumed(9,0)
+        r.records['xz'].update(release_confirmed_ns=9_000_000_000,
+                               running_intervals_ns=[[9_000_000_000,None]],pause_intervals_ns=[])
+        r.cm.checked.return_value=r.out
+        (r.out/'memory.stat').write_text('anon 100\n')
+        r.decision_stream=io.StringIO()
+        r.plan=dict(alignment=dict(offsets_s={'xz':0}),priority_peaks_bytes={'xz':200},
+                    budget=dict(reserve_bytes=20,foreground_only_floor_bytes=10),
+                    models={'xz':dict(curve=[[0,100],[2000,200],[4000,0]],duration_ms=4000)},
+                    priority=dict(task_priorities={'xz':10},max_sample_gap_s=.6,resume_stable_s=.5,
+                                  freeze_prediction=dict(horizon_s=2.5,confirmation_s=.7,
+                                                         phase_search_s={'default':0},
+                                                         level_tolerance_bytes=0,
+                                                         reserve_bytes=20,resume_margin_bytes=10)))
+        r.priority_policy=policy_from_plan(r.plan)
+        with patch('segmented_runner.memory',return_value={'MemAvailable':100}):
+            r.schedule_priority()
+        decision=json.loads(r.decision_stream.getvalue())
+        self.assertEqual(decision['tasks']['xz']['age_s'],1.)
+        self.assertEqual(decision['decision']['freeze_prediction']['continued']['first_risk_in_s'],1.)
+        self.assertEqual(decision['decision']['freeze_prediction']['reserve_bytes'],20)
+        self.assertNotIn('applied_memory_high',decision)
+        r.cm.set_frozen.assert_called_once_with('xz',True,timeout=r.policy_config['freeze_timeout_s'])
+        self.assertEqual(r.clocks['xz'].state,'FROZEN')
+        self.assertEqual(r.freeze_rows[-1]['reason'],'priority_forecast')
+    def test_peak_reservation_freezes_shaped_task_only_after_first_batch(self):
+        r=self.r
+        r.timeline=Mock(t0_ns=9_000_000_000)
+        r.background_ops=('table',)
+        r.high_exit_ns=None
+        r.foreground_events=[]
+        r.last_decision=0
+        r.policy_config['guard_interval_s']=.2
+        r.clocks['table']=r.clocks.pop('xz')
+        r.clocks['table'].resumed(9,0)
+        r.records['table']=dict(release_confirmed_ns=9_000_000_000,actual_start_ns=9_050_000_000,
+                                running_intervals_ns=[[9_000_000_000,None]],pause_intervals_ns=[])
+        r.processes['table']=r.processes.pop('xz')
+        r.groups=dict(table=dict(cgroup_path=str(r.out)),foreground_krita=dict(cgroup_path=str(r.out)))
+        r.cm.checked.return_value=r.out
+        r.decision_stream=io.StringIO()
+        r.plan=dict(workload_kind='shaped',alignment=dict(offsets_s={'table':0}),
+                    priority_peaks_bytes={'table':200,'foreground_krita':160},
+                    budget=dict(reserve_bytes=20),
+                    models={'table':dict(curve=[[0,100],[2000,200],[4000,0]],duration_ms=4000,
+                                         phase_markers_s={'prepare':0.,'grown:1':1.}),
+                            'foreground_krita':dict(curve=[[0,100],[8000,160],[10000,0]],duration_ms=10000)},
+                    priority=dict(task_priorities={},max_sample_gap_s=.6,resume_stable_s=.5,
+                                  freeze_prediction=dict(horizon_s=2.5,confirmation_s=.7,
+                                                         phase_search_s={'default':0},level_tolerance_bytes=0,
+                                                         reserve_bytes=20,resume_margin_bytes=10,
+                                                         reserve_foreground_peak=True)))
+        r.priority_policy=policy_from_plan(r.plan)
+        trace=r.out/'table'/'phase_trace.jsonl'
+        trace.parent.mkdir()
+        trace.write_text(json.dumps(dict(event_type='phase_start',phase='prepare',monotonic_ns=9_100_000_000))+'\n',
+                         encoding='utf-8')
+        with patch('segmented_runner.memory',return_value={'MemAvailable':150}):
+            r.schedule_priority()
+            r.cm.set_frozen.assert_not_called()
+            with trace.open('a',encoding='utf-8') as stream:
+                stream.write(json.dumps(dict(event_type='phase_start',phase='grown:1',monotonic_ns=10_100_000_000))+'\n')
+            self.now=10.3
+            r.schedule_priority()
+        before,after=map(json.loads,r.decision_stream.getvalue().splitlines())
+        self.assertFalse(before['tasks']['table']['freeze_eligible'])
+        self.assertTrue(after['tasks']['table']['freeze_eligible'])
+        self.assertEqual(after['decision']['freeze'],['table'])
+        r.cm.set_frozen.assert_called_once_with('table',True,timeout=r.policy_config['freeze_timeout_s'])
+    def test_phase_anchor_advances_only_during_running_intervals(self):
+        r=self.r
+        r.records['xz'].update(release_confirmed_ns=1_000_000_000,
+                               running_intervals_ns=[[1_000_000_000,10_000_000_000],
+                                                     [20_000_000_000,None]])
+        r.plan=dict(models={'xz':dict(phase_markers_s={'START':4.,'NEXT':12.})})
+        r.prediction_events=lambda op:iter((dict(event_type='phase_start',phase='START',
+                                                monotonic_ns=8_000_000_000),))
+        self.assertEqual(r.prediction_position('xz',21_000_000_000,0),(7.,4.,11.999999999,'START'))
     def test_failed_confirmation_does_not_advance_state(self):
         self.r.cm.set_frozen.side_effect=TimeoutError('not confirmed')
         with self.assertRaises(TimeoutError):self.r.transition('xz',False,'approved_next_segment',lease_until=20)

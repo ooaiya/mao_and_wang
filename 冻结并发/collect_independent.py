@@ -40,7 +40,7 @@ if __name__=='__main__':
     data=base64.b64decode(reply.stdout.strip(),validate=True)
     with tarfile.open(fileobj=io.BytesIO(data),mode='r:gz') as tar:export=json.load(tar.extractfile('EXPORT.json'))
     run_name=Path(export['remote_run']).name
-    if not run_name.startswith(('freezer-independent-','freezer-segmented-','freezer-curve-','freezer-serial-curve-','freezer-priority-','freezer-realtime-','baseline-raster-')) or any(c in run_name for c in ['/', '\\', ':']):raise RuntimeError('unexpected run identity')
+    if not run_name.startswith(('freezer-independent-','freezer-segmented-','freezer-curve-','freezer-serial-curve-','freezer-priority-','baseline-raster-')) or any(c in run_name for c in ['/', '\\', ':']):raise RuntimeError('unexpected run identity')
     baseline=run_name.startswith('baseline-raster-')
     prefix='基线并发_' if baseline else '曲线规划冻结_' if run_name.startswith('freezer-curve-') else '分段冻结_' if run_name.startswith('freezer-segmented-') else '冻结并发_'
     target=args.output or ROOT/'实验结果'/(prefix+run_name)

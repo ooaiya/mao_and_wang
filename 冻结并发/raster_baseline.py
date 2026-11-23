@@ -91,7 +91,6 @@ class DeadlineBaseline:
 
 class RasterBaseline(DeadlineBaseline, RasterPriority):
     run_kind = 'raster_baseline'
-    memory_high_enabled = False
 
 if __name__ == '__main__':
     raise SystemExit(run_cli(RasterBaseline))

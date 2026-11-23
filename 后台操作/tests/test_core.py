@@ -79,8 +79,15 @@ class CoreTests(unittest.TestCase):
                     check_controls(d)
 
     def test_env_permission_error(self):
+        files = {'/proc/1/comm': 'systemd\n', '/proc/swaps': 'Filename Type Size Used Priority\n'}
         with patch('oomlab.environment.privileged', side_effect=PermissionError('sudo denied')), \
-             patch('oomlab.environment.resource_check', return_value={}):
+             patch('oomlab.environment.resource_check', return_value={}), \
+             patch('oomlab.environment.meminfo', return_value={}), \
+             patch('oomlab.environment.platform.freedesktop_os_release',
+                   return_value={'ID': 'ubuntu', 'VERSION_ID': '22.04'}), \
+             patch.object(Path, 'exists', return_value=False), \
+             patch.object(Path, 'read_text', autospec=True,
+                          side_effect=lambda path, *args, **kwargs: files[path.as_posix()]):
             info = check_environment('.')
         self.assertFalse(info['ok'])
         self.assertTrue(any('sudo' in e for e in info['errors']))

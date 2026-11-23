@@ -6,6 +6,7 @@ import statistics
 from pathlib import Path
 
 from independent_plan import OPS, align, envelope, save, sha
+from memory_prediction import read_events,reference_markers
 from offline_plan import continuation
 
 GIB=2**30
@@ -14,6 +15,22 @@ MIB=2**20
 
 def load(path):
     return json.loads(path.read_text(encoding='utf-8'))
+
+
+def priority_settings(config):
+    settings=dict(config['priority'])
+    settings['resume_stable_s']=config['resume_stable_s']
+    fixed='reserve_bytes' in settings.get('freeze_prediction',{})
+    if not fixed:
+        settings.update({key:config[key] for key in ('history_s','rate_window_s','rate_multiplier','reaction_s')})
+    if 'freeze_prediction' in settings:
+        settings['freeze_prediction']=dict(settings['freeze_prediction'],
+            confirmation_s=config['freeze_timeout_s']+config['guard_interval_s'])
+        if fixed:
+            settings['freeze_prediction'].setdefault('reserve_foreground_peak', True)
+        else:
+            settings['freeze_prediction']['growth_margin_bytes']=config['model_error_bytes']
+    return settings
 
 
 def make_serial_plan(run,out,memtotal,live_pressure,binary,config,priority=False):
@@ -33,7 +50,9 @@ def make_serial_plan(run,out,memtotal,live_pressure,binary,config,priority=False
     high_exit=events.get(stage_event,{}).get('monotonic_ns')
     fg_end=tasks['foreground_krita']['empty_confirmed_ns']
     points={op:[] for op in tasks}
+    anonymous={op:[] for op in tasks}
     ends={op:[] for op in tasks}
+    fixed=priority and 'reserve_bytes' in config['priority'].get('freeze_prediction',{})
     with (run/'task_memory.csv').open(encoding='utf-8',newline='') as stream:
         for row in csv.DictReader(stream):
             op=row['operation'];stamp=int(row['monotonic_ns']);task=tasks[op]
@@ -41,6 +60,8 @@ def make_serial_plan(run,out,memtotal,live_pressure,binary,config,priority=False
             charge=int(row['memory_current_bytes'])
             if start<=stamp<=task['empty_confirmed_ns']:
                 points[op].append(((stamp-start)/1e9,charge))
+                if fixed:
+                    anonymous[op].append(((stamp-start)/1e9,int(row['stat_anon_bytes'])))
             if task['empty_confirmed_ns']<=stamp<=task['empty_confirmed_ns']+500_000_000:
                 ends[op].append(charge)
     for op,curve in points.items():
@@ -48,7 +69,24 @@ def make_serial_plan(run,out,memtotal,live_pressure,binary,config,priority=False
         curve.insert(0,(0.,curve[0][1]))
     models={op:envelope(curve,(tasks[op]['empty_confirmed_ns']-
              (homepage if op=='foreground_krita' else tasks[op]['start_ns']))/1e9,
-             max(ends[op],default=curve[-1][1])) for op,curve in points.items()}
+             max(ends[op],default=curve[-1][1]),factor=1.0 if fixed else 1.05)
+            for op,curve in points.items()}
+    phase_files=[]
+    if fixed:
+        for op,track in anonymous.items():
+            track.insert(0,(0.,track[0][1]))
+            start=homepage if op=='foreground_krita' else tasks[op]['start_ns']
+            duration=(tasks[op]['empty_confirmed_ns']-start)/1e9
+            models[op]['anonymous_curve']=envelope(track,duration,track[-1][1],factor=1.0)
+            if op=='foreground_krita':
+                rows=gui
+            else:
+                phase_file=f'{op}/phase_trace.jsonl'
+                if not (run/phase_file).is_file():
+                    continue
+                phase_files.append(phase_file)
+                rows=read_events(run/phase_file)
+            models[op]['phase_markers_s']=reference_markers(op,rows,start,duration)
     alignment=align(points,{'backgrounds':{'xz':{'durations_s':[tasks['xz']['duration_s']]}}})
     if min(alignment['offsets_s'][op] for op in OPS)<0:raise ValueError('negative background offset')
     fg_system=[];tail=[];post=[]
@@ -59,17 +97,18 @@ def make_serial_plan(run,out,memtotal,live_pressure,binary,config,priority=False
             if high_exit is not None and high_exit<=stamp<=fg_end:tail.append(used)
             if fg_end<stamp<=tasks['xz']['start_ns']+4_000_000_000:post.append(used)
     if not fg_system:raise ValueError('missing foreground pressure observations')
-    reserve=math.ceil(memtotal*.116);waiting=16*MIB
+    reserve=config['priority']['freeze_prediction']['reserve_bytes'] if fixed else math.ceil(memtotal*.116)
+    waiting=16*MIB
     # Check that the foreground-only reference fits its emergency floor.
     fg_floor=load(run/'foreground_config.json')['safety']['min_available_bytes']
     live_adjust=max(0,live_pressure-statistics.median(fg_system[:100]))
     floor_predicted=memtotal-max(fg_system)-3*waiting-math.ceil(live_adjust)
     if floor_predicted<fg_floor:raise ValueError('foreground-only phase exceeds its floor with waiting tasks')
     evidence=('summary.json','validation.json','system_memory.csv','task_memory.csv',
-              'foreground_krita/process.log','foreground_config.json','foreground_assets.json','input_provenance.json')
+              'foreground_krita/process.log','foreground_config.json','foreground_assets.json','input_provenance.json',
+              *phase_files)
     if priority:
-        settings=dict(config['priority'])
-        settings.update({key:config[key] for key in ('history_s','rate_window_s','rate_multiplier','reaction_s','resume_stable_s')})
+        settings=priority_settings(config)
         records=dict(schema='oomlab-priority-freezer-v1',execution_mode='priority',background_start='run_on_submit',
             source_kind='MEASURED_SERIAL_CURVES',serial_run=str(run),serial_hashes={name:sha(run/name) for name in evidence},
             alignment=alignment,models=models,priority=settings,
@@ -77,13 +116,16 @@ def make_serial_plan(run,out,memtotal,live_pressure,binary,config,priority=False
                         emergency_floor_bytes=settings.get('emergency_floor_bytes',fg_floor)),
             reference=dict(total_s=summary['total_workload_wall_s'],
                            task_duration_s={op:t['duration_s'] for op,t in tasks.items()}),
-            priority_peaks_bytes={op:model['peak_bytes']+config['model_error_bytes'] for op,model in models.items()})
+            priority_peaks_bytes={op:model['peak_bytes']+(0 if fixed else config['model_error_bytes'])
+                                  for op,model in models.items()})
         if high_exit is not None:
             start=(high_exit-homepage)/1e9
             remaining=[charge for age,charge in points['foreground_krita'] if age>=start]
             if remaining:
                 records['priority_checkpoint']=dict(**checkpoint,
-                    peak_bytes=math.ceil(1.05*max(remaining))+config['model_error_bytes'])
+                    peak_bytes=max(remaining) if fixed else math.ceil(1.05*max(remaining))+config['model_error_bytes'])
+                if 'freeze_prediction' in settings:
+                    records['priority_checkpoint']['reference_age_s']=start
         Path(out).mkdir(parents=True,exist_ok=True)
         save(Path(out)/'plan.json',records)
         return records
