@@ -8,6 +8,7 @@ from pathlib import Path
 import stat
 import tarfile
 import zipfile
+from analysis_paths import external_output
 
 SELECTED={'raw.csv','samples.csv','metadata.json','phase_trace.jsonl','phase-events.jsonl','started.json','finished.json','summary.json','session.json','report.md','collector.json','kernel_start.json','kernel_oom.json','kernel_oom_raw.jsonl','mean.csv','environment.json','memory-events.jsonl','cgroup-end.json','cleanup.json'}
 
@@ -31,7 +32,7 @@ def tar_extract(raw,root):
 
 
 def main():
-    a=argparse.ArgumentParser();a.add_argument('--archives',type=Path,required=True);a.add_argument('--out',type=Path,required=True);args=a.parse_args();root=args.out.resolve();root.mkdir(parents=True,exist_ok=True);inventory=[]
+    a=argparse.ArgumentParser();a.add_argument('--archives',type=Path,required=True);a.add_argument('--out',type=Path,required=True);args=a.parse_args();root=external_output(args.out);inventory=[]
     for path in sorted(args.archives.rglob('*.zip')):
         name=path.name
         if name.startswith('OOM_'):

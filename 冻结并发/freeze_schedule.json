@@ -82,5 +82,6 @@
     "resume anchor uses historical later release after process -9; not proof of normal release or OOM avoidance",
     "single-operation cold runtime and post-end file-cache persistence can delay serial recovery; this plan requires target-VM qualification"
   ],
-  "OOM_avoidance_proven": false
+  "OOM_avoidance_proven": false,
+  "deployment_notice": "Historical configuration example only; NOT an accepted reference for new TeamOOM experiments. Generate and validate fresh captures before formal execution."
 }

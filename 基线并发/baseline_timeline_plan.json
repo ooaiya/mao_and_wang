@@ -87,5 +87,6 @@
     "task_charge_at_Table_peaks_min_bytes": 20283499045.831627,
     "task_charge_at_Table_peaks_max_bytes": 20377411584.0
   },
-  "kernel_interface_reference": "docs/kernel-6.17.13-oomlab-reference.md: user reports cgroup-v2 rw and frozen0->1->0 on 6.17.13-oomlab; deployment scope/permissions rechecked at actual run"
+  "kernel_interface_reference": "docs/kernel-6.17.13-oomlab-reference.md: user reports cgroup-v2 rw and frozen0->1->0 on 6.17.13-oomlab; deployment scope/permissions rechecked at actual run",
+  "deployment_notice": "Historical configuration example only; NOT an accepted reference for new TeamOOM experiments. Generate and validate fresh captures before formal execution."
 }

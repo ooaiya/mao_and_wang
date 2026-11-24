@@ -15,3 +15,65 @@ Thumbs.db
 /后台操作/素材/oom_data/
 /实验结果/
 /冻结并发/离线规划器/memshift_oracle_plan
+
+# Local deployment roots; manifests and source templates live in their documented code paths.
+/assets/
+/data_collection/
+/results/
+/runtime/
+/build/
+**/logs/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.cache/
+**/*.egg-info/
+
+# Experimental captures and materials. JSON configurations remain trackable.
+*.csv
+*.csv.gz
+*.npz
+*.npy
+*.jsonl
+*.log
+*.ora
+*.kra
+*.bin
+*.tar
+*.tar.gz
+*.zip
+*.png
+*.jpg
+*.jpeg
+
+# Explicit synthetic test fixtures and reviewed documentation illustrations.
+!**/tests/fixtures/**/*.csv
+!**/tests/fixtures/**/*.jsonl
+!**/tests/fixtures/**/*.png
+!/docs/resources/*.png
+!/docs/resources/*.jpg
+!/docs/resources/*.jpeg
+
+# Credentials: examples may contain placeholders, never real secrets.
+**/.aws/
+**/.ssh/
+**/.gnupg/
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.template
+**/.netrc
+**/.git-credentials
+**/credentials
+**/credentials.json
+**/id_rsa
+**/id_ed25519
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Papers and assignment material are not deployment code.
+*.pdf
+*.docx
+*.pptx
