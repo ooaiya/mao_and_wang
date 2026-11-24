@@ -1,0 +1,10 @@
+# Install only into /home/mxt/TeamOOM/runtime/venv; resolved versions recorded locally.
+jupyterlab
+nbconvert
+nbclient
+pyarrow
+duckdb
+geopandas
+shapely
+lightgbm
+scikit-learn
