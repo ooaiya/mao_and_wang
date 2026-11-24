@@ -12,9 +12,9 @@ REMOTES = {'git@github.com:ooaiya/mao_and_wang.git',
 DATA_DIRS = {'assets', 'data_collection', 'results', 'runtime', 'build', 'venv',
              '.venv', 'logs', 'outputs', '__pycache__', '.pytest_cache'}
 DATA_SUFFIXES = ('.npz', '.npy', '.csv', '.csv.gz', '.jsonl', '.log', '.ora',
-                 '.kra', '.bin', '.tar', '.tar.gz', '.zip', '.pyc')
+                 '.kra', '.bin', '.tar', '.tar.gz', '.zip', '.pyc', '.parquet', '.gpkg', '.dat', '.pkl', '.joblib', '.lgb', '.ipynb')
 CAPTURE_NAMES = {'samples.json', 'summary.json', 'environment.json', 'phase-events.json',
-                 'raw.json', 'output.json', 'task_memory.json'}
+                 'raw.json', 'output.json', 'task_memory.json', 'trip_duration_model.txt', 'model_metrics.json'}
 # Synthetic fixtures are allowed by path, never exempt from secret scanning.
 FIXTURE = re.compile(r'(^|/)(tests/fixtures|tests/resources)/')
 RESOURCE = re.compile(r'^docs/resources/[\w.-]+\.(png|jpg|jpeg|svg)$')

@@ -77,3 +77,14 @@ Thumbs.db
 *.pdf
 *.docx
 *.pptx
+
+# Real workload inputs, models and executed notebooks stay outside repo.
+*.parquet
+*.gpkg
+*.dat
+*.pkl
+*.joblib
+*.lgb
+*.ipynb
+**/trip_duration_model.txt
+**/model_metrics.json
