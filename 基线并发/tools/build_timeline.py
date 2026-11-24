@@ -13,13 +13,15 @@ import math
 from pathlib import Path
 import statistics
 import numpy as np
+from analysis_paths import DEFAULT_OUTPUT, external_output, source_file
 
 
 def load_events(path):return [json.loads(x) for x in Path(path).read_text().splitlines() if x.strip()]
 
 
-def build(analysis_root,repo,homepage_to_import_s=None):
-    analysis=analysis_root/'final_analysis';rows=list(csv.DictReader((analysis/'operation_round_metrics.csv').open()))
+def build(analysis_root,analysis,output,homepage_to_import_s=None):
+    output=external_output(output);(output/'analysis').mkdir(exist_ok=True);output.joinpath('oracle').mkdir(exist_ok=True)
+    rows=list(csv.DictReader((analysis/'operation_round_metrics.csv').open()))
     npz=np.load(analysis/'profiles.npz');metadata=json.loads((analysis/'profile_metadata.json').read_text())
     kp=next(analysis_root.glob('Krita_Manual_1Round/Krita_Manual_1Round/extracted/*/samples.csv'))
     km=json.loads((kp.parent/'metadata.json').read_text());ev=load_events(kp.parent/'phase-events.jsonl')
@@ -65,7 +67,7 @@ def build(analysis_root,repo,homepage_to_import_s=None):
     for op,values in selected.items():
         for r in values:
             start_ns=int(r['start_monotonic_ns']);end_ns=int(r['end_monotonic_ns'])
-            with open(r['source']) as h:sample=[v for v in csv.DictReader(h) if start_ns<=int(v['monotonic_ns'])<=end_ns]
+            with source_file(analysis_root,r['source']).open() as h:sample=[v for v in csv.DictReader(h) if start_ns<=int(v['monotonic_ns'])<=end_ns]
             curves[r['round_id']]=(np.array([(int(v['monotonic_ns'])-start_ns)/1e9 for v in sample]),np.array([int(v['memory_current']) for v in sample]))
     import itertools
     combinations=[]
@@ -77,13 +79,13 @@ def build(analysis_root,repo,homepage_to_import_s=None):
         charge=float(fore_values.min()+np.interp(at-offsets['xz'],*curves[xz['round_id']])+np.interp(at-offsets['array'],*curves[array['round_id']])+int(table['sampled_peak_bytes']))
         combinations.append(dict(task_charge_bytes=charge,XZ_run=xz['round_id'],Table_run=table['round_id'],Array_run=array['round_id'],Table_peak_homepage_s=at,all_running_supported=supported,Krita_min_peak_fraction=ratios['Krita'],XZ_peak_fraction=ratios['XZ'],Array_peak_fraction=ratios['Array'],all_four_at_least_95pct=supported and min(ratios.values())>=.95))
     if not all(r['all_four_at_least_95pct'] for r in combinations):raise ValueError('round-combination high-memory overlap check failed')
-    with (repo/'基线并发/profiles/analysis/homepage_round_combination_validation.csv').open('w') as h:
+    with (output/'analysis/homepage_round_combination_validation.csv').open('w') as h:
         w=csv.DictWriter(h,fieldnames=list(combinations[0]));w.writeheader();w.writerows(combinations)
     version=hashlib.sha256(json.dumps({'sources':[(r['operation'],r['round_id'],r['source_sha256'],r['selected']) for r in rows],'homepage_bracket_s':bounds,'offsets_s':offsets,'grid_s':.05,'alignment_policy':'cover_all_Table_peak_times_with_per_round_XZ_Array_95pct_platforms_v4'},sort_keys=True).encode()).hexdigest()
     schedule=[dict(operation=o,type='foreground' if o=='foreground_krita' else 'background',start_offset_s=offsets[o]) for o in sorted(offsets,key=offsets.get)]
     plan={'schema_version':4,'status':'INITIAL_DEPLOYMENT_PROVISIONAL_HOMEPAGE_CALIBRATION_REQUIRED','T0_event':'homepage_ready',
         'T0_definition':'Krita main homepage visibly loaded and interactive; auto read-only AT-SPI evidence or explicit homepage-ready confirmation. Never process start, first input, or import trigger.',
-        'data_version_sha256':version,'samples':{'foreground_krita':1,'xz':3,'table':10,'array':9},'array_excluded_run':'9d3859de4be24a28936d0cc6287f38ec','array_exclusion_basis':'explicit user instruction in this session; retain 10-round sensitivity',
+        'data_version_sha256':version,'samples':{('foreground_krita' if op=='Krita' else op.lower()):sum(r['operation']==op and r['selected']=='True' for r in rows) for op in ['Krita','XZ','Table','Array']},'array_excluded_runs':[r['round_id'] for r in rows if r['operation']=='Array' and r['selected']!='True'],'array_exclusion_basis':'explicit exclusions recorded in supplied metrics',
         'historical_import_origin_monotonic_ns':imported,'historical_homepage_ready_monotonic_ns':None,
         'historical_homepage_to_import_inferred_bounds_s':list(inferred_bounds),'planning_homepage_to_import_bounds_s':list(bounds),'historical_homepage_to_import_assumption_s':statistics.mean(bounds),
         'homepage_to_import_calibration_override_s':homepage_to_import_s,
@@ -102,7 +104,7 @@ def build(analysis_root,repo,homepage_to_import_s=None):
         'task_charge_at_Table_peaks_min_bytes':min(r['task_charge_bytes'] for r in combinations),
         'task_charge_at_Table_peaks_max_bytes':max(r['task_charge_bytes'] for r in combinations)}
     plan['kernel_interface_reference']='docs/kernel-6.17.13-oomlab-reference.md: user reports cgroup-v2 rw and frozen0->1->0 on 6.17.13-oomlab; deployment scope/permissions rechecked at actual run'
-    (repo/'基线并发/baseline_timeline_plan.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2))
+    (output/'baseline_timeline_plan.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2))
     # Fixed offline freezes at each operation's first 10% growth point. Memory at
     # the freeze point is retained in the model, never replaced with zero.
     events=[];freeze_state={}
@@ -122,16 +124,16 @@ def build(analysis_root,repo,homepage_to_import_s=None):
         'runtime_decisions':'none; execute fixed absolute timestamps only; memory and PSI are recorded, never consulted for timing',
         'model_limits':['freezing retains preallocated memory','Krita remains alive after manual done, so no memory release is inferred from task_end','resume anchor uses historical later release after process -9; not proof of normal release or OOM avoidance','single-operation cold runtime and post-end file-cache persistence can delay serial recovery; this plan requires target-VM qualification'],
         'OOM_avoidance_proven':False}
-    (repo/'冻结并发/freeze_schedule.json').write_text(json.dumps(freeze,ensure_ascii=False,indent=2))
+    (output/'freeze_schedule.json').write_text(json.dumps(freeze,ensure_ascii=False,indent=2))
     # Original v1 Oracle contract: total anonymous memory envelope, 500ms grid.
-    oracle=repo/'基线并发/profiles/oracle';oracle.mkdir(exist_ok=True)
+    oracle=output/'oracle';oracle.mkdir(exist_ok=True)
     model_audit=[]
     for op in ['XZ','Table','Array']:
         selected=[r for r in rows if r['operation']==op and r['selected']=='True'];duration=math.ceil(max(float(r['duration_s']) for r in selected)*2)*500
         maxima=np.zeros(duration//500+1,dtype=np.int64)
         for r in selected:
             start=int(r['start_monotonic_ns']);end=int(r['end_monotonic_ns'])
-            with open(r['source']) as h:
+            with source_file(analysis_root,r['source']).open() as h:
                 for value in csv.DictReader(h):
                     ns=int(value['monotonic_ns'])
                     if not start<=ns<=end:continue
@@ -163,4 +165,4 @@ def build(analysis_root,repo,homepage_to_import_s=None):
 
 
 if __name__=='__main__':
-    a=argparse.ArgumentParser();a.add_argument('--analysis-root',type=Path,required=True);a.add_argument('--repo',type=Path,default=Path(__file__).resolve().parents[2]);a.add_argument('--homepage-to-import-s',type=float,help='explicit measured calibration override; never guessed automatically');args=a.parse_args();build(args.analysis_root,args.repo,args.homepage_to_import_s)
+    a=argparse.ArgumentParser();a.add_argument('--analysis-root',type=Path,required=True);a.add_argument('--analysis-dir',type=Path,required=True,help='directory containing explicitly generated metrics and profiles');a.add_argument('--output',type=Path,default=DEFAULT_OUTPUT/'timeline');a.add_argument('--homepage-to-import-s',type=float,help='explicit measured calibration override; never guessed automatically');args=a.parse_args();build(args.analysis_root.resolve(strict=True),args.analysis_dir.resolve(strict=True),args.output,args.homepage_to_import_s)

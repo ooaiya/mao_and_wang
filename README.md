@@ -22,3 +22,8 @@
 | [串行测试](串行测试/README.md) · [无干预并发基线](基线并发/README.md) | 当前场景的两个对照及历史 XZ、栅格 FFT 入口 |
 
 实验机使用 Ubuntu 22.04.5、Linux 6.17.13、Python 3.10、约 16 GiB RAM、systemd cgroup v2 和 GNOME Wayland/XWayland。自动化入口沿用原实验桌面账号。仓库提供源码、配置及素材校验清单。Krita ORA、历史后台输入和原始实验结果从项目交接资料中另行取得。
+
+
+数据与分支管理见 [Git 数据安全说明](GIT_DATA_POLICY.md)。仓库中的 `baseline_timeline_plan.json` 和 `freeze_schedule.json` 是保留的历史计划示例，不是本机新实验已验收参照。新的合格前后台参照尚未生成，不能直接开展正式预测实验。
+
+当前部署边界：Krita + Array + Raster + Table 仅为历史构造场景。下一阶段真实应用实例和素材尚未选择，不沿用旧时间线，不生成替代参照，不自动启动采集或压力实验。
