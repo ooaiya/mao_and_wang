@@ -92,7 +92,7 @@ def operation_c(out):
     pickup = od.groupby(level=0,dropna=False).sum().rename('pickup_trips')
     dropoff = od.groupby(level=1,dropna=False).sum().rename('dropoff_trips')
     pickup.to_csv(out/'pickup_zone_analysis.csv');dropoff.to_csv(out/'dropoff_zone_analysis.csv')
-    zones = gpd.read_file('zip://' + str(ASSETS/'taxi_zones/taxi_zones.zip'))
+    zones = gpd.read_file('/vsizip/' + str(ASSETS/'taxi_zones/taxi_zones.zip') + '/taxi_zones/taxi_zones.shp')
     lookup=pd.read_csv(ASSETS/'taxi_zones/taxi_zone_lookup.csv')
     assert lookup.LocationID.is_unique
     zones=zones.merge(lookup[['LocationID','service_zone']],on='LocationID',how='left')
