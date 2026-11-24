@@ -89,8 +89,8 @@ def operation_c(out):
         od = group if od is None else od.add(group,fill_value=0)
     assert int(od.sum()) == n
     od.rename('trips').unstack(fill_value=0).to_csv(out/'taxi_od_matrix.csv')
-    pickup = od.groupby(level=0).sum().rename('pickup_trips')
-    dropoff = od.groupby(level=1).sum().rename('dropoff_trips')
+    pickup = od.groupby(level=0,dropna=False).sum().rename('pickup_trips')
+    dropoff = od.groupby(level=1,dropna=False).sum().rename('dropoff_trips')
     pickup.to_csv(out/'pickup_zone_analysis.csv');dropoff.to_csv(out/'dropoff_zone_analysis.csv')
     zones = gpd.read_file('zip://' + str(ASSETS/'taxi_zones/taxi_zones.zip'))
     lookup=pd.read_csv(ASSETS/'taxi_zones/taxi_zone_lookup.csv')
@@ -103,7 +103,7 @@ def operation_c(out):
     fig,ax=plt.subplots(figsize=(10,10));zones.plot(column='pickup_trips',ax=ax,legend=True)
     ax.set_title('NYC TLC pickup zone demand');fig.savefig(out/'zone_flow_map.png');plt.close(fig)
     save(out,'analysis_summary.json',dict(operation='C',input_rows=n,od_sum=int(od.sum()),zones=len(zones),
-         unmatched_pickup_ids=[int(x) for x in pickup.index if x not in set(zones.LocationID)],
+         unmatched_pickup_ids=[str(x) for x in pickup.index if x not in set(zones.LocationID)],
          note='Unknown/outside-NYC IDs retained in OD and CSV; not fabricated into geographic shapes'))
 
 
