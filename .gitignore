@@ -86,5 +86,5 @@ Thumbs.db
 *.joblib
 *.lgb
 *.ipynb
-**/trip_duration_model.txt
+**/*_model.txt
 **/model_metrics.json

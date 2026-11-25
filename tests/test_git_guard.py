@@ -62,7 +62,7 @@ class GuardTests(unittest.TestCase):
 
     def test_data_and_credentials(self):
         for path in ['results/run.json', 'capture.csv', 'trace.jsonl', 'curves.npz',
-                     'run.log', 'image.png', 'taxi.parquet', 'model.joblib', 'trip_duration_model.txt', 'run.ipynb', '.aws/config', '.env', 'id_ed25519']:
+                     'run.log', 'image.png', 'input.parquet', 'model.joblib', 'trained_model.txt', 'run.ipynb', '.aws/config', '.env', 'id_ed25519']:
             with self.subTest(path=path):
                 self.assertIsNotNone(guard.violation(path, b'test'))
         secret = ('gh' + 'p_' + 'A' * 36).encode()
