@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Validate staged files and every outgoing commit without changing Git state."""
 import argparse
+import hashlib
 from pathlib import PurePosixPath
 import re
 import subprocess
 import sys
+
+# Explicit user-authorized export, pinned to reviewed report-only bytes.
+REPORT_ARCHIVES = {'codex_reports/app_candidates/TeamOOM_reports_20261126.zip': '1fa71b0b475b9a2a03ca06368bfae67fc382aa527234cf894951db78434748df'}
 
 ALLOWED = {'refs/heads/mxt', 'refs/heads/mxt_codex'}
 REMOTES = {'git@github.com:ooaiya/mao_and_wang.git',
@@ -57,6 +61,8 @@ def violation(path, data, mode='100644'):
         return 'environment credentials'
     if any(pattern.search(data) for pattern in SECRET_PATTERNS):
         return 'possible secret (value redacted)'
+    if path in REPORT_ARCHIVES:
+        return None if hashlib.sha256(data).hexdigest() == REPORT_ARCHIVES[path] else 'report archive digest differs from explicitly authorized export'
     fixture = bool(FIXTURE.search(path))
     if not fixture and (parts & DATA_DIRS or name.endswith(DATA_SUFFIXES)
                         or name in CAPTURE_NAMES or name.endswith('_model.txt')):
@@ -98,7 +104,7 @@ def ancestor(old, new):
 
 
 def report_only(names):
-    return all(name.startswith('codex_reports/') and name.endswith('.md') for name in names)
+    return all((name.startswith('codex_reports/') and name.endswith('.md')) or name in REPORT_ARCHIVES for name in names)
 
 
 def code_projection(ref):

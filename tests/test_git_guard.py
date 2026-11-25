@@ -60,6 +60,18 @@ class GuardTests(unittest.TestCase):
         self.commit('report')
         self.push('mxt_codex')
 
+    def test_pinned_report_export_is_not_a_general_archive_exception(self):
+        from unittest.mock import patch
+        import hashlib
+        path='codex_reports/app_candidates/TeamOOM_reports_20261126.zip'
+        payload=b'synthetic report fixture'
+        with patch.dict(guard.REPORT_ARCHIVES,{path:hashlib.sha256(payload).hexdigest()},clear=True):
+            self.assertIsNone(guard.violation(path,payload))
+            self.assertIsNotNone(guard.violation(path,payload+b'changed'))
+            self.assertIsNotNone(guard.violation('codex_reports/other.zip',payload))
+            self.assertTrue(guard.report_only([path]))
+            self.assertFalse(guard.report_only(['codex_reports/other.zip']))
+
     def test_data_and_credentials(self):
         for path in ['results/run.json', 'capture.csv', 'trace.jsonl', 'curves.npz',
                      'photo.RAW', 'photo.CR3', 'photo.NEF', 'clip.MP4', 'clip.MOV', 'clip.mkv',
