@@ -34,3 +34,7 @@ python3 基线并发/tools/plot_profiles.py --source-root /external/capture-pack
 非破坏性检查：`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v`。策略测试只在临时本地仓库建立合成提交，不连接远端、不执行实际 push、不运行实验。
 
 当前部署边界：Krita + Array + Raster + Table 仅为历史构造场景。下一阶段真实应用实例和素材尚未选择，不沿用旧时间线，不生成替代参照，不自动启动采集或压力实验。
+
+## 2026-11-26 用户指定报告导出例外
+
+用户明确要求将可下载报告包传到mxt_codex。仅允许codex_reports/app_candidates/TeamOOM_reports_20261126.zip，内容摘要固定在tools/git_guard.py的REPORT_ARCHIVES中；修改字节即拒绝，其他ZIP及实验素材/原始采样仍被拒绝。包内仅报告、汇总指标与曲线图，排除媒体、原始采样、日志和带签名的临时下载地址。Git hooks保持启用。
