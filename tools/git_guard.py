@@ -14,7 +14,7 @@ DATA_DIRS = {'assets', 'data_collection', 'results', 'runtime', 'build', 'venv',
 DATA_SUFFIXES = ('.npz', '.npy', '.csv', '.csv.gz', '.jsonl', '.log', '.ora',
                  '.kra', '.bin', '.tar', '.tar.gz', '.zip', '.pyc', '.parquet', '.gpkg', '.dat', '.pkl', '.joblib', '.lgb', '.ipynb')
 CAPTURE_NAMES = {'samples.json', 'summary.json', 'environment.json', 'phase-events.json',
-                 'raw.json', 'output.json', 'task_memory.json', 'trip_duration_model.txt', 'model_metrics.json'}
+                 'raw.json', 'output.json', 'task_memory.json', 'model_metrics.json'}
 # Synthetic fixtures are allowed by path, never exempt from secret scanning.
 FIXTURE = re.compile(r'(^|/)(tests/fixtures|tests/resources)/')
 RESOURCE = re.compile(r'^docs/resources/[\w.-]+\.(png|jpg|jpeg|svg)$')
@@ -55,7 +55,7 @@ def violation(path, data, mode='100644'):
         return 'possible secret (value redacted)'
     fixture = bool(FIXTURE.search(path))
     if not fixture and (parts & DATA_DIRS or name.endswith(DATA_SUFFIXES)
-                        or name in CAPTURE_NAMES):
+                        or name in CAPTURE_NAMES or name.endswith('_model.txt')):
         return 'experiment data, output, material or cache'
     if not fixture and name.endswith(('.png', '.jpg', '.jpeg')) and not RESOURCE.fullmatch(path):
         return 'generated image; documentation resources require docs/resources/'
