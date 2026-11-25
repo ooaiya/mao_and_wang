@@ -12,7 +12,11 @@ REMOTES = {'git@github.com:ooaiya/mao_and_wang.git',
 DATA_DIRS = {'assets', 'data_collection', 'results', 'runtime', 'build', 'venv',
              '.venv', 'logs', 'outputs', '__pycache__', '.pytest_cache'}
 DATA_SUFFIXES = ('.npz', '.npy', '.csv', '.csv.gz', '.jsonl', '.log', '.ora',
-                 '.kra', '.bin', '.tar', '.tar.gz', '.zip', '.pyc', '.parquet', '.gpkg', '.dat', '.pkl', '.joblib', '.lgb', '.ipynb')
+                 '.kra', '.bin', '.tar', '.tar.gz', '.zip', '.pyc', '.parquet', '.gpkg', '.dat', '.pkl', '.joblib', '.lgb', '.ipynb',
+                 '.raw', '.arw', '.cr2', '.cr3', '.nef', '.raf', '.rw2', '.orf', '.dng',
+                 '.crw', '.nrw', '.sr2', '.srf', '.mp4', '.mov', '.mkv', '.avi',
+                 '.blend', '.blend1', '.blend2', '.kdenlive', '.kdenlivetitle', '.pto',
+                 '.tif', '.tiff', '.7z', '.rar', '.xz', '.tar.xz')
 CAPTURE_NAMES = {'samples.json', 'summary.json', 'environment.json', 'phase-events.json',
                  'raw.json', 'output.json', 'task_memory.json', 'model_metrics.json'}
 # Synthetic fixtures are allowed by path, never exempt from secret scanning.
