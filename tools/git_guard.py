@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 # Explicit user-authorized export, pinned to reviewed report-only bytes.
-REPORT_ARCHIVES = {'codex_reports/app_candidates/TeamOOM_reports_20261126.zip': '1fa71b0b475b9a2a03ca06368bfae67fc382aa527234cf894951db78434748df'}
+REPORT_ARCHIVES = {'codex_reports/app_candidates/TeamOOM_round3_20261126_170421_gui_round3_reports.zip': 'e2770694a59b336e120d7b6955b131febdf48d84f65719db17718d92de0f940a', 'codex_reports/app_candidates/TeamOOM_reports_20261126.zip': '1fa71b0b475b9a2a03ca06368bfae67fc382aa527234cf894951db78434748df'}
 
 ALLOWED = {'refs/heads/mxt', 'refs/heads/mxt_codex'}
 REMOTES = {'git@github.com:ooaiya/mao_and_wang.git',
