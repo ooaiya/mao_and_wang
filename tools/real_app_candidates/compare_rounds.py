@@ -80,14 +80,55 @@ def draw(ax,run,label='',components=True,normalized=False,full=True):
     ax.grid(alpha=.2);ax.set_xlabel('Real seconds since last GUI submit (no time scaling)');ax.set_ylabel('Baseline-subtracted increment / peak increment' if normalized else 'GiB');ax.legend(fontsize=7)
 
 
+def plot_generic(runs, output):
+    """Plot arbitrary measured candidates, reusing the same lifecycle semantics."""
+    selected=runs['new']
+    for app,run in selected.items():
+        fig,ax=plt.subplots(figsize=(14,6));draw(ax,run)
+        ax.set_title(app+' full observed lifecycle; gray submit / green complete / red close or exit')
+        fig.tight_layout();fig.savefig(output/(app+'_full_lifecycle.png'),dpi=150);plt.close(fig)
+    for app,old in runs.get('old',{}).items():
+        if app not in selected or old['folder']==selected[app]['folder']:continue
+        fig,axes=plt.subplots(2,1,figsize=(14,8),sharex=True,sharey=True)
+        for ax,run,label in [(axes[0],old,'previous'),(axes[1],selected[app],'current')]:
+            draw(ax,run);ax.set_title(app+' '+label)
+        fig.tight_layout();fig.savefig(output/(app+'_before_after.png'),dpi=150);plt.close(fig)
+    n=len(selected);rows=(n+1)//2
+    for normal,components,name in [(False,False,'all_apps_common_scale.png'),(True,False,'all_apps_normalized.png'),(False,True,'all_apps_anon_file.png'),(True,True,'all_apps_normalized_components.png')]:
+        fig,axes=plt.subplots(rows,2,figsize=(16,4.5*rows),sharex=True,sharey=True,squeeze=False)
+        for ax,(app,run) in zip(axes.flat,selected.items()):
+            draw(ax,run,normalized=normal,components=components,full=False);ax.set_title(app)
+        for ax in list(axes.flat)[n:]:ax.set_visible(False)
+        fig.tight_layout();fig.savefig(output/name,dpi=150);plt.close(fig)
+    table={k:v for k,v in selected.items() if k in {'dbeaver','hop'}}
+    if table:
+        fig,axes=plt.subplots(2,1,figsize=(14,8),sharex=True)
+        for app,run in table.items():
+            draw(axes[0],run,label=app,full=False)
+            draw(axes[1],run,label=app,components=False,normalized=True,full=False)
+        fig.tight_layout();fig.savefig(output/'table_candidates_comparison.png',dpi=150);plt.close(fig)
+    for target,spec in TARGETS.items():
+        fig,ax=plt.subplots(figsize=(14,6))
+        for app,run in selected.items():draw(ax,run,label=app,components=False,full=False)
+        ax.axhline(spec[0],color='black',ls=':',label=target+' reported total peak')
+        ax.set_title(f'{target}: scalar reference only; global peak {spec[1]}s, P95 {spec[2]}s. No reconstructed target series.')
+        ax.legend(fontsize=8);fig.tight_layout();fig.savefig(output/(target.lower()+'_candidate_comparison.png'),dpi=150);plt.close(fig)
+    rows_out=[dict(application=app,**run['metrics']) for app,run in selected.items()]
+    fields=['application','peak_gib','anon_peak_gib','file_peak_gib','time_to90_s','time_to95_s','time_to_peak_s','platform95_total_s','platform95_longest_s','growth10_to90_s','anon_time_to90_s','anon_platform95_s','observed_compute_s','natural_release_observed_s','release90_duration_s','release_ratio','residual_gib','natural_release_censored','data']
+    with (output/'final_summary.csv').open('w') as f:
+        writer=csv.DictWriter(f,fieldnames=fields,extrasaction='ignore');writer.writeheader();writer.writerows(rows_out)
+
+
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--manifest',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--manifest',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--generic',action='store_true',help='Compare arbitrary candidate sets instead of the historical round2 layout');a=p.parse_args()
     import subprocess
     a.output.mkdir(parents=True,exist_ok=True)
     if subprocess.run(['git','-C',str(a.output),'rev-parse','--show-toplevel'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0:raise ValueError('Results must be outside Git')
     manifest=json.loads(a.manifest.read_text());runs={group:{app:load_round(path) for app,path in entries.items()} for group,entries in manifest.items()}
     stats={group:{app:run['metrics'] for app,run in entries.items()} for group,entries in runs.items()}
     (a.output/'candidate_metrics.json').write_text(json.dumps(stats,indent=2,ensure_ascii=False))
+    if a.generic:
+        plot_generic(runs,a.output);print(json.dumps(stats,indent=2));return
     for number,app in [(1,'peazip'),(2,'blender'),(3,'handbrake')]:
         fig,axes=plt.subplots(2,1,figsize=(13,8),sharex=True,sharey=True)
         for group,ax in zip(['old','new'],axes):
