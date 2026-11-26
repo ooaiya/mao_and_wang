@@ -38,3 +38,7 @@ python3 基线并发/tools/plot_profiles.py --source-root /external/capture-pack
 ## 2026-11-26 用户指定报告导出例外
 
 用户明确要求将可下载报告包传到mxt_codex。仅允许codex_reports/app_candidates/TeamOOM_reports_20261126.zip，内容摘要固定在tools/git_guard.py的REPORT_ARCHIVES中；修改字节即拒绝，其他ZIP及实验素材/原始采样仍被拒绝。包内仅报告、汇总指标与曲线图，排除媒体、原始采样、日志和带签名的临时下载地址。Git hooks保持启用。
+
+## 第三轮交付上传例外
+
+用户明确要求上传第三轮交付至mxt_codex。仅额外允许codex_reports/app_candidates/TeamOOM_round3_20261126_170421_gui_round3_reports.zip，SHA256固定为e2770694a59b336e120d7b6955b131febdf48d84f65719db17718d92de0f940a。包中仅报告、指标、曲线及复现/验证证据，排除原始采样、素材、软件和业务输出；其余保护及hooks不变。
