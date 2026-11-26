@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--directory',type=Path,required=True);p.add_argument('--application',choices=['blender','hugin','darktable','kdenlive','handbrake','peazip'],required=True);p.add_argument('command',nargs=argparse.REMAINDER);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--directory',type=Path,required=True);p.add_argument('--application',choices=['blender','hugin','darktable','kdenlive','handbrake','peazip','knime'],required=True);p.add_argument('command',nargs=argparse.REMAINDER);a=p.parse_args()
     folder=a.directory.resolve()
     if folder.exists():raise SystemExit('Refuse an existing round directory: '+str(folder))
     parent=folder.parent

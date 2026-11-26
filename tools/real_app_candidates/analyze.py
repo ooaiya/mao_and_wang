@@ -18,7 +18,27 @@ def metrics(df,start,end):
     platform=float(dt[high].sum());longest=run=0.
     for delta,on in zip(dt,high):
         run=run+float(delta) if on else 0.;longest=max(longest,run)
-    return dict(growth10_to90_s=float(t[np.flatnonzero(y>=.9*peak)[0]]-t[np.flatnonzero(y>=.1*peak)[0]]),time_to95_s=float(t[np.flatnonzero(y>=.95*peak)[0]]),status='OBSERVED',samples=len(d),peak_gib=peak,time_to_peak_s=float(t[i]),platform95_total_s=platform,platform95_longest_s=longest,observed_compute_s=float((end-start)/1e9),anon_peak_gib=float(d.memory_anon.max()/GIB),file_peak_gib=float(d.memory_file.max()/GIB))
+    result=dict(growth10_to90_s=float(t[np.flatnonzero(y>=.9*peak)[0]]-t[np.flatnonzero(y>=.1*peak)[0]]),time_to90_s=float(t[np.flatnonzero(y>=.9*peak)[0]]),time_to95_s=float(t[np.flatnonzero(y>=.95*peak)[0]]),status='OBSERVED',samples=len(d),peak_gib=peak,time_to_peak_s=float(t[i]),platform95_total_s=platform,platform95_longest_s=longest,observed_compute_s=float((end-start)/1e9),anon_peak_gib=float(d.memory_anon.max()/GIB),file_peak_gib=float(d.memory_file.max()/GIB))
+    # Absolute thresholds above are comparable with the historical scalar metrics.
+    # Separately report the actual task increment, excluding the loaded GUI baseline.
+    before=df[(df.monotonic_ns<start)&(df.monotonic_ns>=start-1e9)]
+    baseline=float(before.memory_current.median()/GIB) if not before.empty else float(y[0])
+    result['baseline_gib']=baseline
+    result['increment_peak_gib']=max(0.,peak-baseline)
+    if peak>baseline:
+        lo=t[np.flatnonzero(y>=baseline+.1*(peak-baseline))[0]]
+        hi=t[np.flatnonzero(y>=baseline+.9*(peak-baseline))[0]]
+        result['increment_growth10_to90_s']=float(hi-lo)
+    else:result['increment_growth10_to90_s']=None
+    for column,label in [('memory_anon','anon'),('memory_file','file')]:
+        values=d[column].to_numpy()/GIB;p=float(values.max())
+        result[label+'_time_to90_s']=float(t[np.flatnonzero(values>=.9*p)[0]])
+        result[label+'_platform95_s']=float(dt[values[:-1]>=.95*p].sum())
+        # Forward difference over an observed 2.5s horizon; no extrapolation.
+        future=np.searchsorted(t,t+2.5);valid=future<len(t)
+        changes=values[future[valid]]-values[valid]
+        result[label+'_max_forward_2_5s_growth_gib']=float(changes.max()) if len(changes) else None
+    return result
 
 
 
@@ -26,15 +46,25 @@ def select_compute_window(events,overrides=None):
     """Last GUI submission, paired with a later completion and verification."""
     overrides=overrides or {}
     ordered=sorted(events,key=lambda e:e['monotonic_ns'])
+    # Keep the original trace immutable. A documented operator correction may
+    # supersede a mistaken failure inference; native failures stay disqualifying.
+    corrected={e['detail']['supersedes_monotonic_ns']:e['detail']['corrected_kind'] for e in ordered
+               if e['kind']=='event_correction' and isinstance(e.get('detail'),dict)
+               and 'supersedes_monotonic_ns' in e['detail'] and 'corrected_kind' in e['detail']}
     submits=[e for e in ordered if e['kind']=='task_submit']
     if not submits:return None
     start=overrides.get('task_submit_ns',submits[-1]['monotonic_ns'])
     completes=[e for e in ordered if e['kind']=='task_complete' and e['monotonic_ns']>=start]
-    verified=any(e['kind']=='output_verified' and e['monotonic_ns']>=start for e in ordered)
-    if not completes or not verified:return None
+    if not completes:return None
     end=overrides.get('task_complete_ns',completes[0]['monotonic_ns'])
     if end<=start:return None
-    if any(e['kind'] in {'task_failed','safety_abort'} and start<=e['monotonic_ns']<=end for e in ordered):return None
+    if not any(e['kind']=='output_verified' and e['monotonic_ns']>=end for e in ordered):return None
+    def effective_kind(e):
+        if e['kind']=='safety_abort':return 'safety_abort'
+        if e['kind']=='task_failed' and isinstance(e.get('detail'),dict):return 'task_failed'
+        correction=corrected.get(e['monotonic_ns'])
+        return correction if correction in {'configuration_warning','configuration_note'} else e['kind']
+    if any(effective_kind(e) in {'task_failed','safety_abort'} and start<=e['monotonic_ns']<=end for e in ordered):return None
     return start,end
 
 
