@@ -55,9 +55,9 @@ def main():
     assert read('memory.max')=='max' and read('memory.high')=='max','Unexpected inherited limit: do not collect as unconstrained'
     initial_oom=kv(Path('/proc/vmstat').read_text()).get('oom_kill',0);initial_events=kv(read('memory.events'));start=time.monotonic_ns();known=set();next_tree=start;abort=None;last_current=0;intervals=[];last_ns=None
     (folder/'environment.json').write_text(json.dumps(dict(unit=a.unit,cgroup=str(cg),command=command,start_monotonic_ns=start,memory=system_memory(),memory_max=read('memory.max'),memory_high=read('memory.high'),memory_swap_max=read('memory.swap.max'),sample_period_ns=50000000),indent=2))
-    fields=['monotonic_ns','elapsed_s','memory_current','memory_anon','memory_file','memory_peak','pids_current','cpu_usage_usec','memory_events','memory_pressure','MemAvailable','SwapTotal','SwapFree','global_oom_kill','pswpin_pages','pswpout_pages','cgroup_swap_current','cpu_pressure','io_pressure']
+    fields=['monotonic_ns','elapsed_s','memory_current','memory_anon','memory_file','memory_peak','pids_current','cpu_usage_usec','memory_events','memory_pressure','MemAvailable','SwapTotal','SwapFree','global_oom_kill','pswpin_pages','pswpout_pages','cgroup_swap_current','cpu_pressure','io_pressure','memory_max','memory_high','host_cpu_pressure','host_memory_pressure','host_cpu_stat']
     with (folder/'task_memory.csv').open('w') as f,(folder/'process_tree.csv').open('w') as tree:
-        writer=csv.DictWriter(f,fieldnames=fields);writer.writeheader();tw=csv.writer(tree);tw.writerow(['monotonic_ns','pid','ppid','comm','cgroup'])
+        writer=csv.DictWriter(f,fieldnames=fields);writer.writeheader();tw=csv.writer(tree);tw.writerow(['monotonic_ns','pid','ppid','comm','cgroup','state','rss_bytes','pss_bytes'])
         deadline=time.monotonic_ns()
         while cg.exists():
             now=time.monotonic_ns()
@@ -65,7 +65,7 @@ def main():
                 current=read('memory.current')
                 if not current:break
                 last_current=int(current);stat=kv(read('memory.stat'));cpu=kv(read('cpu.stat'));mem=system_memory();events=kv(read('memory.events'));vm=kv(Path('/proc/vmstat').read_text());oom=vm.get('oom_kill',0)
-                writer.writerow(dict(monotonic_ns=now,elapsed_s=(now-start)/1e9,memory_current=current,memory_anon=stat.get('anon'),memory_file=stat.get('file'),memory_peak=read('memory.peak'),pids_current=read('pids.current'),cpu_usage_usec=cpu.get('usage_usec'),memory_events=json.dumps(events),memory_pressure=read('memory.pressure').replace('\n',';'),MemAvailable=mem['MemAvailable'],SwapTotal=mem['SwapTotal'],SwapFree=mem['SwapFree'],global_oom_kill=oom,pswpin_pages=vm.get('pswpin'),pswpout_pages=vm.get('pswpout'),cgroup_swap_current=read('memory.swap.current'),cpu_pressure=read('cpu.pressure').replace('\n',';'),io_pressure=read('io.pressure').replace('\n',';')));f.flush()
+                writer.writerow(dict(monotonic_ns=now,elapsed_s=(now-start)/1e9,memory_current=current,memory_anon=stat.get('anon'),memory_file=stat.get('file'),memory_peak=read('memory.peak'),pids_current=read('pids.current'),cpu_usage_usec=cpu.get('usage_usec'),memory_events=json.dumps(events),memory_pressure=read('memory.pressure').replace('\n',';'),MemAvailable=mem['MemAvailable'],SwapTotal=mem['SwapTotal'],SwapFree=mem['SwapFree'],global_oom_kill=oom,pswpin_pages=vm.get('pswpin'),pswpout_pages=vm.get('pswpout'),cgroup_swap_current=read('memory.swap.current'),cpu_pressure=read('cpu.pressure').replace('\n',';'),io_pressure=read('io.pressure').replace('\n',';'),memory_max=read('memory.max'),memory_high=read('memory.high'),host_cpu_pressure=Path('/proc/pressure/cpu').read_text().strip().replace('\n',';'),host_memory_pressure=Path('/proc/pressure/memory').read_text().strip().replace('\n',';'),host_cpu_stat=Path('/proc/stat').read_text().splitlines()[0]));f.flush()
                 if last_ns is not None:intervals.append((now-last_ns)/1e9)
                 last_ns=now
                 if now>=next_tree:
@@ -74,7 +74,10 @@ def main():
                         if (path/'cgroup.procs').exists():pids.update(int(s) for s in (path/'cgroup.procs').read_text().split())
                     for pid in pids:
                         try:
-                            raw=Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split();actual=Path(f'/proc/{pid}/cgroup').read_text().strip();tw.writerow([now,pid,raw[1],Path(f'/proc/{pid}/comm').read_text().strip(),actual])
+                            raw=Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split();actual=Path(f'/proc/{pid}/cgroup').read_text().strip();status=Path(f'/proc/{pid}/status').read_text();rss=next((int(l.split()[1])*1024 for l in status.splitlines() if l.startswith('VmRSS:')),0)
+                            try:pss=next((int(l.split()[1])*1024 for l in Path(f'/proc/{pid}/smaps_rollup').read_text().splitlines() if l.startswith('Pss:')),0)
+                            except OSError:pss=None
+                            tw.writerow([now,pid,raw[1],Path(f'/proc/{pid}/comm').read_text().strip(),actual,raw[0],rss,pss])
                         except OSError:pass
                     # Descendants of observed members must remain in this subtree.
                     for proc in Path('/proc').iterdir():
@@ -86,6 +89,7 @@ def main():
                                 if cg_text not in actual:abort='observed descendant escaped cgroup'
                         except (OSError,ValueError):pass
                     known|=pids;tree.flush();next_tree=now+1000000000
+                if '-qgis-' in a.unit and last_current>=12*1024**3:abort='QGIS application memory reached 12GiB safety threshold'
                 if mem['MemAvailable']<2*1024**3:abort='MemAvailable below 2GiB: imminent host pressure'
                 if oom>initial_oom or events.get('oom_kill',0)>initial_events.get('oom_kill',0):abort='OOM kill observed'
                 if abort:
