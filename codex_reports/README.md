@@ -15,3 +15,7 @@
 ## Krita合成素材单轮尝试
 
 [2026-11-27素材验收与安全停止报告](foreground_krita/generated_20261127_154636/README.md)：素材和预检通过，唯一采集因持续全局PSI安全停止，PILOT_INVALID。
+
+## 2026-11-27 PSI专项诊断
+
+[全局内存PSI Full只读归因报告](diagnostics/psi_full_root_cause_20261127/README.md)：确认回收与少量换页，责任线程证据不足；100GiB设备已识别，分区/文件系统尚未扩展。
