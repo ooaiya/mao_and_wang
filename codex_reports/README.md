@@ -11,3 +11,7 @@
 ## 最新交付：2026-11-27
 
 [应用清理、Table十轮审计与Krita素材准备](maintenance/pre_krita_20261127_141145/README.md)：清理完成；Table需要重采；Krita因指定原始ORA缺失而未启动采集。
+
+## Krita合成素材单轮尝试
+
+[2026-11-27素材验收与安全停止报告](foreground_krita/generated_20261127_154636/README.md)：素材和预检通过，唯一采集因持续全局PSI安全停止，PILOT_INVALID。
