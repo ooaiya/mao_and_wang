@@ -1,16 +1,17 @@
 """Connect the three shaped workloads and their solo captures to the freezer."""
 
+import bisect
 import csv
+import hashlib
+import json
 import math
 import sys
 from pathlib import Path
 
-from independent_plan import envelope, save, sha, value
-from memory_prediction import read_events, reference_markers
-from serial_curve_plan import load, priority_settings
+from .phase_events import read_events, reference_markers
 
 
-WORKER = Path(__file__).resolve().parents[1] / '后台操作/曲线任务/shaped_workload.py'
+WORKER = Path(__file__).resolve().parents[2] / '后台操作/曲线任务/shaped_workload.py'
 sys.path.insert(0, str(WORKER.parent))
 from shaped_workload import PROFILES, TIMING_FLAGS, timing_args, timing_for
 
@@ -18,6 +19,53 @@ TASKS = tuple(PROFILES)
 FOREGROUND = 'foreground_krita'
 REFERENCE_FILES = ('summary.json', 'environment.json', 'task_memory.csv', 'output.json', 'phase_trace.jsonl')
 
+
+def load(path):
+    return json.loads(Path(path).read_text(encoding='utf-8'))
+
+
+def save(path, value):
+    Path(path).write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding='utf-8')
+
+
+def sha(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def priority_settings(config):
+    settings = dict(config['priority'])
+    settings['resume_stable_s'] = config['resume_stable_s']
+    prediction = dict(settings['freeze_prediction'])
+    prediction['confirmation_s'] = config['freeze_timeout_s'] + config['guard_interval_s']
+    prediction.setdefault('reserve_foreground_peak', True)
+    settings['freeze_prediction'] = prediction
+    return settings
+
+
+def value(curve,t):
+    if t<curve[0][0]-1e-7 or t>curve[-1][0]+1e-7:return None
+    t=min(curve[-1][0],max(curve[0][0],t))
+    at=bisect.bisect_right(curve,(t,float('inf')))-1
+    if at==len(curve)-1:return curve[at][1]
+    a,b=curve[at:at+2]
+    return a[1]+(b[1]-a[1])*(t-a[0])/(b[0]-a[0])
+
+def envelope(curve,duration,terminal,tail_bound=None,factor=1.05):
+    """500 ms upper envelope; unobserved tail is a labelled conservative bound."""
+    bins={}
+    for t,b in curve:
+        if t>=0:bins.setdefault(int(t*2),[]).append(b)
+    result=[];last=curve[0][1]
+    end=math.ceil(duration*2)*500
+    for ms in range(0,end,500):
+        vals=bins.get(ms//500,[])
+        # Include both interval endpoints; observed samples bound sampled data only.
+        vals+= [v for v in [value(curve,ms/1000),value(curve,(ms+500)/1000)] if v is not None]
+        if ms/1000>curve[-1][0]:vals=[tail_bound if tail_bound is not None else last]
+        v=math.ceil(max(vals or [last])*factor);last=v/factor
+        if not result or v!=result[-1][1]:result.append([ms,v])
+    result.append([end,math.ceil(terminal*factor)])
+    return dict(duration_ms=end,curve=result,peak_bytes=max(v for _,v in result),terminal_bytes=result[-1][1],reference_level_scale=factor)
 
 def provenance(batch):
     result = {}

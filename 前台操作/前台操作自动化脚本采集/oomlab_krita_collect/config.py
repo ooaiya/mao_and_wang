@@ -27,7 +27,7 @@ def read(path):
             positive(value)
     for key in ['max_global_full_avg10','cooldown_max_full_avg10']:
         if c['safety'][key]>100: raise ValueError('PSI threshold exceeds 100%')
-    if (pilot and c['acceptance']!={}) or (not pilot and set(c['acceptance'])!={'krita','xz','table','array_processing'}):raise ValueError('PILOT acceptance must be empty; formal needs per-operation bounds')
+    if (pilot and c['acceptance']!={}) or (not pilot and 'krita' not in c['acceptance']):raise ValueError('PILOT acceptance must be empty and formal needs Krita bounds')
     for bounds in c['acceptance'].values():
         if set(bounds)!={'min_peak_bytes','max_peak_bytes'} or any(type(v) is not int or v<0 for v in bounds.values()):raise ValueError('integer acceptance bytes required')
         if not bounds['min_peak_bytes']<=bounds['max_peak_bytes']<c['safety']['max_cgroup_bytes']:raise ValueError('acceptance must lie below safety stop threshold')

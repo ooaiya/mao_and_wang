@@ -23,8 +23,7 @@ with tarfile.open(fileobj=buf,mode='w:gz') as tar:
  fg=Path(v['foreground_source']) if v.get('foreground_source') else Path((h/'oom_lab/src/KRITA_TIMED_SOURCE.txt').read_text().strip())
  original=json.loads((root/'source_provenance.json').read_text())['foreground']['files']
  for rel in original:
-  tar.add(fg/rel,arcname='foreground_source/'+rel,recursive=False)
- for p in (h/'bg/oomlab').glob('*.py'):tar.add(p,arcname='background_source/oomlab/'+p.name,recursive=False)
+  if rel.startswith('前台操作/'):tar.add(fg/rel,arcname='foreground_source/'+rel,recursive=False)
  info=json.dumps(dict(remote_run=str(root),remote_source=str(source),excluded=excluded),indent=2).encode();item=tarfile.TarInfo('EXPORT.json');item.size=len(info);tar.addfile(item,io.BytesIO(info))
 print(base64.b64encode(buf.getvalue()).decode())
 '''

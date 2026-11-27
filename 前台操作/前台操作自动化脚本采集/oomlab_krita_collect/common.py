@@ -9,7 +9,6 @@ SCHEMA = 1
 BUDGET = 16 * 1024**3
 ROOT = Path(__file__).resolve().parents[3]
 GUI = ROOT / '前台操作/前台操作自动化脚本采集'
-BACKGROUND = ROOT / '后台操作'
 
 
 def save(path, value):
@@ -71,11 +70,11 @@ def fingerprint(path):
 
 
 def source_identity():
-    paths = [GUI/'scripts/krita_auto.py', GUI/'scripts/pick_coords.py', GUI/'scripts/krita_accessibility.py', GUI/'scripts/krita_action.py', GUI/'requirements.txt', BACKGROUND/'oomlab/workloads.py', BACKGROUND/'oomlab/common.py', BACKGROUND/'configs/profiles.json', BACKGROUND/'requirements.txt']
+    paths = [GUI/'scripts/krita_auto.py', GUI/'scripts/pick_coords.py', GUI/'scripts/krita_accessibility.py', GUI/'scripts/krita_action.py', GUI/'requirements.txt']
     paths += sorted((GUI/'oomlab_krita_collect').glob('*.py'))+sorted((GUI/'configs').glob('collection*.json'))
-    files = {str(p.relative_to(ROOT)): digest(p) for p in paths}
-    dirty=bool(command(['git','-C',ROOT,'diff','--name-only','HEAD','--','前台操作/前台操作自动化脚本采集/oomlab_krita_collect','前台操作/前台操作自动化脚本采集/scripts','前台操作/前台操作自动化脚本采集/configs','前台操作/前台操作自动化脚本采集/requirements.txt','后台操作']).stdout.strip())
-    dirty=dirty or bool(command(['git','-C',ROOT,'ls-files','--others','--exclude-standard','--','前台操作/前台操作自动化脚本采集/oomlab_krita_collect','前台操作/前台操作自动化脚本采集/scripts','前台操作/前台操作自动化脚本采集/configs','前台操作/前台操作自动化脚本采集/requirements.txt','后台操作']).stdout.strip())
+    files = {p.relative_to(ROOT).as_posix(): digest(p) for p in paths}
+    dirty=bool(command(['git','-C',ROOT,'diff','--name-only','HEAD','--','前台操作/前台操作自动化脚本采集/oomlab_krita_collect','前台操作/前台操作自动化脚本采集/scripts','前台操作/前台操作自动化脚本采集/configs','前台操作/前台操作自动化脚本采集/requirements.txt']).stdout.strip())
+    dirty=dirty or bool(command(['git','-C',ROOT,'ls-files','--others','--exclude-standard','--','前台操作/前台操作自动化脚本采集/oomlab_krita_collect','前台操作/前台操作自动化脚本采集/scripts','前台操作/前台操作自动化脚本采集/configs','前台操作/前台操作自动化脚本采集/requirements.txt']).stdout.strip())
     return dict(source_dirty=dirty,git_sha=command(['git','-C',ROOT,'rev-parse','HEAD']).stdout.strip(),
                 git_branch=command(['git','-C',ROOT,'branch','--show-current']).stdout.strip(),files=files)
 

@@ -45,19 +45,20 @@ subprocess.run(['/usr/bin/python3','-B','-m','unittest','discover','-s','串行�
                 '-p','test_serial.py'],cwd=source,check=True)
 out = h / 'oom_lab/results' / ('serial-extended-'+tag)
 unit = 'oomlab-serial-extended-'+tag
-recovery = f'/usr/bin/python3 "{source/"冻结并发/restore_swap.py"}" "{out/"swap_state.json"}"'
+recovery = f'/usr/bin/python3 "{source/"基线并发/common/restore_swap.py"}" "{out/"swap_state.json"}"'
 args = [
     'sudo','-n','systemd-run','--unit='+unit,
     '-p','Delegate=yes','-p','OOMScoreAdjust=-900','-p','OOMPolicy=continue',
     '-p','RuntimeMaxSec=4800','-p','KillMode=control-group','-p','ExecStopPost='+recovery,
     '/usr/bin/python3',str(source/'串行测试/run_serial.py'),'--output',str(out),
-    '--foreground-run',str(foreground_run),'--foreground-source',str(foreground_source),'--no-swap',
+    '--foreground-run',str(foreground_run),'--foreground-source',str(foreground_source),'--shaped-run',FOREGROUND['shaped_run'],'--no-swap',
 ]
 subprocess.run(args,check=True)
 receipt = dict(source=str(source),output=str(out),unit=unit,
                foreground_source=str(foreground_source),foreground_run=str(foreground_run),
                no_swap=True,launched_wall_ns=time.time_ns())
 (h/'oom_lab/config'/('SERIAL_EXTENDED_'+tag+'.json')).write_text(json.dumps(receipt,indent=2))
+(h/'oom_lab/config/SERIAL_LATEST.json').write_text(json.dumps(receipt,indent=2))
 print('RECEIPT '+json.dumps(receipt,ensure_ascii=True))
 '''
 
@@ -67,17 +68,18 @@ def main():
     parser.add_argument('--foreground-receipt', type=Path, required=True)
     parser.add_argument('--foreground-archive', type=Path, required=True)
     parser.add_argument('--receipt', type=Path, required=True)
+    parser.add_argument('--shaped-run', required=True, help='background solo capture directory on the VM')
     args = parser.parse_args()
     if args.receipt.exists():
         raise FileExistsError(args.receipt)
     launch = json.loads(args.foreground_receipt.read_text(encoding='utf-8'))
     archive = json.loads(args.foreground_archive.read_text(encoding='utf-8'))
-    foreground = dict(source=launch['source'],run=archive['run'])
+    foreground = dict(source=launch['source'],run=archive['run'],shaped_run=args.shaped_run)
     files = {
         path.relative_to(ROOT).as_posix(): base64.b64encode(path.read_bytes()).decode()
         for path in [
             *(ROOT/'串行测试').glob('*.py'), *(ROOT/'基线并发/common').glob('*.py'),
-            ROOT/'冻结并发/restore_swap.py',
+            ROOT/'后台操作/曲线任务/shaped_workload.py',
         ]
     }
     reply = ssh('FOREGROUND='+repr(foreground)+'\nFILES='+repr(files)+'\n'+DEPLOY,60)

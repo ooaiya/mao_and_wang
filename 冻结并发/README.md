@@ -1,10 +1,10 @@
 # 冻结并发
 
-当前四任务场景用 [raster_priority.py](raster_priority.py) 运行，传入 `--shaped-run`、`--offsets`、`--foreground-run` 和 `--foreground-source`。分批后台在原偏移开跑，完成首批后可以冻结。三个后台的时序参数和输出校验摘要来自同一批独立采样。启动和复核命令见 [复现实验](../复现实验.md)。
+当前四任务场景用 [raster_priority.py](raster_priority.py) 运行，传入 `--shaped-run`、`--offsets`、`--foreground-run`、`--foreground-source` 和 `--output`。正式对照可通过 `--policy-config` 指定本轮策略配置。分批后台到点放行，完成首批后可以冻结。三个后台的时序参数和输出校验摘要来自同一批独立采样。启动和复核命令见 [复现实验](../复现实验.md)。
 
 ## 查表预测器
 
-[shaped_scene.py](shaped_scene.py) 用独立采样生成半秒分箱上界，保存总占用曲线、匿名内存曲线和阶段标记。每轮现场决策从最新的任务阶段和内存采样开始。
+[shaped_scene.py](../基线并发/common/shaped_scene.py) 用独立采样生成半秒分箱上界，保存总占用曲线、匿名内存曲线和阶段标记。每轮现场决策从最新的任务阶段和内存采样开始。
 
 - **Krita**。从最近确认的历史阶段向后查询剩余总占用峰值和匿名内存峰值。两个峰值分别减去现场对应占用，取较大的非负增量作为预留，覆盖整个后台窗口。确认高压实例退出后，按中压尾段的剩余峰值重算。
 - **运行中的后台**。从当前阶段内按有效执行时间查候选起点，并用现场匿名内存校对。每个候选分别算总占用增长和匿名增长，取较大的非负值。匿名增长以候选起点匿名量与现场匿名量中的较小值为基准。匹配不到用量时保留阶段候选的上包络。冻结期间有效执行时间暂停。
@@ -25,14 +25,8 @@
 
 `priority_decisions.jsonl` 保存 `foreground_peak_growth_bytes`、风险时点、候选及冻融试算结果。`freeze_events.json` 保存请求和确认的单调时钟时间戳。500 MiB 是预测决策门槛，实测余量以 `system_memory.csv` 为准。
 
-## 历史场景和对照入口
+Krita 导入和退出耗时会改变前后台峰值的重叠时刻，阶段与历史起点的匹配会影响后台增长估计。预测以采样当时的整机可用内存为基准，四任务模型之外的系统内存变化也可能改变后续余量。复核跌线时，按确认时刻对齐前台阶段、冻结批次、预测起点和实测最低点。
 
-| 场景 | 入口 |
-| --- | --- |
-| 当前分批场景无干预并发 | [raster_baseline.py](raster_baseline.py)，读取同一独立采样、前台与偏移。 |
-| 当前分批场景串行 | [run_serial.py](../串行测试/run_serial.py) 配合 `--shaped-run`、前台参照和 `--no-swap`。 |
-| 历史 XZ 曲线分级 | [segmented_runner.py](segmented_runner.py) 配合 `--serial-policy priority` 和无 Swap 串行参照。 |
-| 历史栅格 FFT 曲线分级 | [raster_priority.py](raster_priority.py) 配合 `--raster-run`。串行参照用 `--serial-run` 和 `--raster-alignment`，四项独立参照用 `--independent-run` 导出峰值偏移。 |
-| 历史离线续跑 | `segmented_runner.py --serial-policy offline --planner <程序路径>`。参见 [离线规划器](离线规划器/README.md)。 |
+使用 [review_independent.py](review_independent.py) 复核完成轮次，输出 `validation.json`、`report.md`、`freezer_memory.png` 和 `freezer_tasks.png`。将 `freeze_events.json` 的确认时间与后台的 `phase_trace.jsonl` 对齐，可查到每次冻结落在哪一批之后。
 
-新分级计划默认启用 `priority.freeze_prediction.reserve_foreground_peak`。关闭该开关会同时切换前台预测方式和当前执行器的首批冻结候选门槛。回放历史结果时使用各轮归档的计划及规则。
+无干预并发与串行的入口分别在 [基线并发](../基线并发/README.md) 和 [串行测试](../串行测试/README.md)。默认策略配置在 [raster_priority_config.json](raster_priority_config.json)，复现实验指南给出正式轮次的分级优先级与固定偏移。

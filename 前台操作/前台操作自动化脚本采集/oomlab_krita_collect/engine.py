@@ -6,30 +6,19 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from .common import ROOT,GUI,BACKGROUND,save,load,fresh,fingerprint,SCHEMA
+from .common import ROOT,GUI,save,load,fresh,fingerprint,SCHEMA
 from .metrics import FIELDS,snapshot,deltas,process_sample
 from .environment import controls,conflicts
 from .units import Unit,members,process_cgroup
 
 
-def background():
-    if str(BACKGROUND) not in sys.path:sys.path.insert(0,str(BACKGROUND))
-    from oomlab import workloads
-    return workloads
-
-
-def recipe(operation,c,data=None,profile_name=None):
+def recipe(operation,c):
     if operation=='krita':
         cmd=[sys.executable,'-u',str(GUI/'scripts/krita_auto.py'),c['asset']['path']]
         if c.get('mode')=='pilot':cmd+=['--layers-dir',c['pilot']['layers_dir'],'--settings','{run_root}/config.snapshot.json','--assets-manifest','{run_root}/assets_manifest.json','--control-file','{run_root}/stop-request.json','--process-record','{run_output}/krita-process.json']
         return dict(operation=operation,command=cmd,asset=c['asset'])
     if operation=='smoke':return dict(operation=operation,command=['/usr/bin/sleep','0.2'],classification='TEST_ONLY')
-    background()
-    from oomlab.common import profile
-    parameters=profile(BACKGROUND/'configs/profiles.json',operation,profile_name)
-    manifest=background().validate_input(data,operation,parameters)
-    return dict(operation=operation,command=[sys.executable,'-m','oomlab.workloads',str(Path(data).resolve()),'{run_output}'],
-                data=str(Path(data).resolve()),profile=profile_name,parameters=parameters,input_manifest=manifest)
+    raise ValueError(f'Unsupported foreground operation: {operation}')
 
 
 def directory_state(path):
@@ -148,8 +137,6 @@ def run_one(session,c,recipes,environment,offsets=None,test_only=False):
         meta['parent_cgroup']=str(parent);meta['parent_properties']=status
         controls(parent)
         for op,spec in recipes.items():
-            if op in ('xz','table','array_processing') and not test_only and background().validate_input(spec['data'],op,spec['parameters'])!=spec['input_manifest']:
-                raise ValueError('background input changed since single-operation preparation')
             target=fresh(run/op);cmd=[x.replace('{run_output}',str(target)).replace('{run_root}',str(run)) for x in spec['command']]
             save(target/'command.json',dict(command=cmd,recipe=spec,classification=meta['classification']))
             unit=Unit('oomcollect-'+token+'-'+op+'.service',target,slice_name);all_units.append(unit);jobs[op]=unit
@@ -202,9 +189,6 @@ def run_one(session,c,recipes,environment,offsets=None,test_only=False):
             result=meta['finishes'][op]
             if result['returncode']!=0 or result['error']:raise RuntimeError('automation/workload exit failed: '+op)
             if {p['pid'] for p in identity[op]}!={u.pid}:raise RuntimeError('workload descendants remain: '+op)
-            if op in ('xz','table','array_processing') and not test_only:
-                background().verify(recipes[op]['data'],u.run)
-                if background().validate_input(recipes[op]['data'],op,recipes[op]['parameters'])!=recipes[op]['input_manifest']:raise ValueError('background input changed')
         expected_pids={hold.pid}|{u.pid for u in jobs.values()}
         if members(parent)!=expected_pids:raise RuntimeError('unexpected process remains in parent boundary')
         if pilot:

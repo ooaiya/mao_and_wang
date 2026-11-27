@@ -8,12 +8,11 @@ import sys
 from bisect import bisect_right
 from pathlib import Path
 
-from raster_priority import raster_events, verify_raster
-from serial_curve_plan import load
+from common.shaped_scene import load, verify as verify_shaped
 
 
 GIB = 2**30
-LABELS = dict(foreground_krita='Krita', raster_fft='Raster FFT', raster='Raster calibration', xz='XZ', array='Array', table='Table')
+LABELS = dict(foreground_krita='Krita', raster='Raster calibration', array='Array', table='Table')
 OOM = re.compile(r'out of memory|oom-kill:|killed process\s+\d+', re.I)
 KILL = re.compile(r'killed process\s+(\d+)\s+\((.*?)\)', re.I)
 
@@ -23,11 +22,9 @@ def csv_rows(path):
         return list(csv.DictReader(text))
 
 
-def workload_start(root, op, task, raster):
+def workload_start(root, op, task):
     if 'actual_start_ns' in task:
         return task['actual_start_ns']
-    if op == 'raster_fft':
-        return next((e['monotonic_ns'] for e in raster if e['event']=='tile_background_start'), None)
     if op != 'foreground_krita':
         return next((e['monotonic_ns'] for e in json_rows(root/op/'phase_trace.jsonl')
                      if e.get('event_type')=='task_start'), None)
@@ -46,7 +43,8 @@ def kernel_evidence(root, start, end, gui):
     wall_offset = anchor['wall_time_ns'] - anchor['monotonic_ns']
     options = ['-o', 'json', '--no-pager', '--since', f'@{(start+wall_offset)/1e9-2:.6f}',
                '--until', f'@{(end+wall_offset)/1e9+2:.6f}']
-    unit = subprocess.run(['journalctl', '-u', 'oomlab-'+root.name, *options],
+    unit_name = root.name if root.name.startswith('oomlab-') else 'oomlab-' + root.name
+    unit = subprocess.run(['journalctl', '-u', unit_name, *options],
                           capture_output=True, text=True, timeout=30)
     (root/'unit_journal.jsonl').write_text(unit.stdout, encoding='utf-8')
     boots = {e['_BOOT_ID'] for e in json_rows(root/'unit_journal.jsonl') if e.get('_BOOT_ID')}
@@ -72,14 +70,8 @@ def review_completed_task(root, op, task, gui, provenance):
     if task.get('returncode') != 0 or task.get('cleanup_terminated'):
         return dict(ok=False, reason='task did not complete normally')
     try:
-        if op == 'raster_fft':
-            return verify_raster(root/op, provenance[op])
         if op != 'foreground_krita':
-            if provenance[op].get('workload_kind') == 'shaped':
-                from shaped_scene import verify as verify_shaped
-                return verify_shaped(root/op, provenance[op])
-            from oomlab.workloads import verify
-            return verify(provenance[op]['path'], root/op)
+            return verify_shaped(root/op, provenance[op])
         from oomlab_krita_collect.validation import verify_pilot_events
         verify_pilot_events(gui, load(root/'foreground_assets.json')['script_contract'])
         return dict(ok=True, method='verified Krita timed workflow and successful exit')
@@ -92,8 +84,7 @@ def draw(root, t0, system, curves, kills, target):
     matplotlib.use('Agg')
     from matplotlib import pyplot as plt
     fig, (top, bottom) = plt.subplots(2, 1, figsize=(11, 7), sharex=True, layout='constrained')
-    variant = 'Raster' if 'raster_fft' in curves or 'raster' in curves else 'XZ'
-    fig.suptitle(f'{variant} baseline: swap off, no throttling or freezing', fontsize=15, fontweight='bold')
+    fig.suptitle('Raster baseline: swap off, no throttling or freezing', fontsize=15, fontweight='bold')
     age = lambda row: (int(row['monotonic_ns'])-t0)/1e9
     def plot(ax, rows, key, **style):
         x, y = [], []
@@ -134,9 +125,7 @@ def review(root):
     logs_ok, kernel = kernel_evidence(root, start, end, gui)
     kills = [r for r in kernel if r['victim_pid'] is not None]
     cutoff = min(end, min((r['monotonic_ns'] for r in kernel), default=end))
-    raster_log = root/'raster_fft/process.log'
-    raster = list(raster_events(raster_log)) if raster_log.exists() else []
-    workload_starts = {op: workload_start(root, op, task, raster)
+    workload_starts = {op: workload_start(root, op, task)
                        for op, task in summary['tasks'].items()}
     workload_starts['foreground_krita'] = t0
     system = [r for r in csv_rows(root/'system_memory.csv') if t0 <= int(r['monotonic_ns']) and int(r['read_end_ns']) <= end]
@@ -160,7 +149,6 @@ def review(root):
     peak = max(complete, key=lambda item: sum(item[1].values()), default=None)
     count_95 = sum(all(batch[op] >= .95*plan['models'][op]['peak_bytes'] for op in operations) for _, batch in complete)
     source = load(root/'source_provenance.json')
-    sys.path.insert(0, str(Path.home()/'bg'))
     sys.path.insert(0, str(Path(source['foreground_source'])/'前台操作/前台操作自动化脚本采集'))
     provenance = load(root/'input_provenance.json')
     stamp = lambda ns: (ns-t0)/1e9
@@ -205,14 +193,13 @@ def review(root):
                       sum_charge_GiB=sum(peak[1].values())/GIB,
                       tasks_GiB={op:charge/GIB for op, charge in peak[1].items()}) if peak else None,
                   foreground_high_exit_s=next((stamp(e['monotonic_ns']) for e in gui if e.get('kind')=='HIGH_INSTANCE_EXIT'), None),
-                  raster_stages_s={e['event']:stamp(e['monotonic_ns']) for e in raster if e['event']!='tile_progress'},
+
                   sampler_max_gap_s=summary['collector']['max_gap_s'], summary_status=summary['status'],
                   runner_error=summary['error'], measured_duration_s=stamp(end))
     (root/'validation.json').write_text(json.dumps(result, indent=2)+'\n', encoding='utf-8')
     victim_text=''.join(f"- 首页后 {stamp(row['monotonic_ns']):.3f} s。内核杀死 {row['victim_name']}（PID {row['victim_pid']}）。\n" for row in kills)
     launch_table='\n'.join(f"| {LABELS[op]} | {offsets[op]:.3f} s | {tasks.get(op, {}).get('submitted_s')} | {tasks.get(op, {}).get('actual_start_s')} |" for op in delays)
-    variant = '栅格' if 'raster_fft' in operations or 'raster' in operations else 'XZ'
-    report=(f'# {variant} 负载无干预基线\n\n'
+    report=(f'# 当前四任务无干预基线\n\n'
             f"| 核对项 | 结果 |\n|---|---|\n| OOM | {result['oom']} |\n"
             f"| `oom_kill` 增量 | {summary['global_oom_kill_delta']} |\n| 四项均通过校验 | {success} |\n"
             f"| 最低 `MemAvailable` | {result['lowest_available_MiB']:.2f} MiB |\n"

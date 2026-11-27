@@ -1,5 +1,9 @@
 import unittest
-from independent_plan import value,envelope,align
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / '基线并发'))
+from common.shaped_scene import value, envelope
 
 class CurveTests(unittest.TestCase):
     def test_roundoff_is_not_an_unobserved_tail(self):

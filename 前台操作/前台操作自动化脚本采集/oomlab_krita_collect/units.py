@@ -52,7 +52,7 @@ class Unit:
         for key in ('DISPLAY','XAUTHORITY','WAYLAND_DISPLAY','XDG_RUNTIME_DIR','XDG_SESSION_TYPE','XDG_SESSION_ID','DBUS_SESSION_BUS_ADDRESS','HOME','PATH'):
             if key in os.environ: args.append('--setenv='+key+'='+os.environ[key])
         args+=['--setenv=QT_QPA_PLATFORM=xcb','--setenv=PYTHONUNBUFFERED=1',
-               '--setenv=PYTHONPATH='+str(GUI)+os.pathsep+str(ROOT/'background'),sys.executable,'-u','-m','oomlab_krita_collect.worker',str(self.run)]
+               '--setenv=PYTHONPATH='+str(GUI),sys.executable,'-u','-m','oomlab_krita_collect.worker',str(self.run)]
         if hold: args.append('--hold')
         record=command(args,check=False)
         save(self.run/'systemd-start.json',dict(command=args,returncode=record.returncode,stdout=record.stdout,stderr=record.stderr))

@@ -64,7 +64,7 @@ class ConfigTests(unittest.TestCase):
                 with self.assertRaises(ValueError):read(p)
     def test_pilot_rejects_resume_background_smoke_and_repeats_before_preflight(self):
         base=['collect','--config',str(Path(__file__).parent/'fixtures/collection.pilot.json'),'--results','/tmp/TEST_ONLY-unused']
-        for extra in (['--rounds','10'],['--resume-session','/tmp/anything'],['--operation','xz'],['--smoke'],['--target-valid-rounds','10']):
+        for extra in (['--rounds','10'],['--resume-session','/tmp/anything'],['--smoke'],['--target-valid-rounds','10']):
             with patch.object(cli,'check') as check,contextlib.redirect_stderr(io.StringIO()):self.assertEqual(cli.main(base+extra),2);check.assert_not_called()
     def test_recipe_uses_one_existing_framework_and_own_control_paths(self):
         cmd=recipe('krita',config())['command'];self.assertIn('{run_root}/stop-request.json',cmd);self.assertIn('--assets-manifest',cmd)

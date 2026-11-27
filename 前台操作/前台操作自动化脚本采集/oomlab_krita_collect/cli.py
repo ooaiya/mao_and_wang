@@ -15,7 +15,7 @@ from .validation import report,validate_run
 
 def collect(c,args):
     pilot=c.get('mode')=='pilot'
-    if pilot and (args.operation!='krita' or args.smoke or args.resume_session or args.rounds!=1 or args.target_valid_rounds is not None or args.approve_first_summary_sha256 or args.data):raise ValueError('PILOT is exactly one Krita run; no smoke/background/resume/formal continuation')
+    if pilot and (args.operation!='krita' or args.smoke or args.resume_session or args.rounds!=1 or args.target_valid_rounds is not None or args.approve_first_summary_sha256):raise ValueError('PILOT is exactly one Krita run; no smoke/background/resume/formal continuation')
     base=outside_repo(args.results);base.mkdir(parents=True,exist_ok=True)
     env=check(c,base,require_gui=not args.smoke)
     if not env['ok']:raise RuntimeError(json.dumps(env,ensure_ascii=False))
@@ -23,7 +23,7 @@ def collect(c,args):
     # the old background collector lock: that collector is not invoked at all.
     with measurement_lock():
         op='smoke' if args.smoke else args.operation
-        spec=recipe(op,c,args.data,args.profile)
+        spec=recipe(op,c)
         source=source_identity()
         if args.resume_session:
             raw_session=Path(args.resume_session).absolute()
@@ -67,7 +67,7 @@ def main(argv=None):
     sub=parser.add_subparsers(dest='action',required=True)
     p=sub.add_parser('preflight');p.add_argument('--config',required=True);p.add_argument('--results',required=True)
     p=sub.add_parser('collect');p.add_argument('--config',required=True);p.add_argument('--results',required=True)
-    p.add_argument('--operation',choices=['krita','xz','table','array_processing'],default='krita');p.add_argument('--data');p.add_argument('--profile',default='small')
+    p.add_argument('--operation',choices=['krita'],default='krita')
     p.add_argument('--rounds',type=int,default=1);p.add_argument('--resume-session');p.add_argument('--target-valid-rounds',type=int)
     p.add_argument('--approve-first-summary-sha256');p.add_argument('--smoke',action='store_true',help='sleep only; always TEST_ONLY')
     p=sub.add_parser('validate');p.add_argument('run')
@@ -91,7 +91,6 @@ def main(argv=None):
                 out=outside_repo(args.results);out.mkdir(parents=True,exist_ok=True)
                 save(out/('preflight-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex+'.json'),result)
             print(json.dumps(result,ensure_ascii=False,indent=2));return 0 if result['ok'] else 2
-        if args.operation!='krita' and not args.smoke and not args.data:raise ValueError('background operation requires --data')
         return collect(c,args)
     except (Exception,KeyboardInterrupt) as e:
         print(type(e).__name__+': '+str(e),file=sys.stderr);return 2

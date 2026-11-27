@@ -1,6 +1,0 @@
-{
-  "schema_version": 4,
-  "deprecated_alias": true,
-  "shared_timeline": "基线并发/baseline_timeline_plan.json",
-  "note": "All runners read the single shared timeline; this legacy file contains no independent offsets."
-}

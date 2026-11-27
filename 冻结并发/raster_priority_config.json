@@ -1,16 +1,14 @@
 {
   "schema": "oomlab-curve-offline-execution-v1",
   "freeze_timeout_s": 0.5,
-  "watchdog_interval_s": 0.05,
   "guard_interval_s": 0.2,
   "resume_stable_s": 0.5,
-  "release_max_lateness_s": 2.0,
   "priority": {
     "task_priorities": {
       "foreground_krita": 100,
-      "xz": 30,
-      "array": 20,
-      "table": 10
+      "raster": 0,
+      "table": 0,
+      "array": 0
     },
     "emergency_floor_bytes": null,
     "max_sample_gap_s": 0.6,
@@ -18,7 +16,10 @@
       "horizon_s": 2.5,
       "reserve_bytes": 524288000,
       "resume_margin_bytes": 268435456,
-      "phase_search_s": {"default": 2.0, "foreground_krita": 20.0, "raster_fft": 30.0},
+      "phase_search_s": {
+        "default": 2.0,
+        "foreground_krita": 20.0
+      },
       "level_tolerance_bytes": 67108864
     },
     "foreground_checkpoint": {

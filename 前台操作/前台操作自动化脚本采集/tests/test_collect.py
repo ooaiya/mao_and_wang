@@ -14,7 +14,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 from oomlab_krita_collect import metrics
-from oomlab_krita_collect.common import save,load,fresh,seal,verify_seal,positive,ROOT,GUI,BACKGROUND,digest
+from oomlab_krita_collect.common import save,load,fresh,seal,verify_seal,positive,ROOT,GUI,digest
 from oomlab_krita_collect.asset import inspect,pinned
 from oomlab_krita_collect.phases import observe,validate as validate_phases
 from oomlab_krita_collect.units import Unit,process_cgroup
@@ -28,7 +28,7 @@ def config(root):
     safety.update(max_sample_gap_s=1,max_cgroup_bytes=10**12,max_global_full_avg10=100,
                   cooldown_cgroup_bytes=10**10,cooldown_min_available_bytes=0,cooldown_max_full_avg10=100,
                   cooldown_timeout_s=1,cooldown_stable_s=.01,run_timeout_s=5)
-    return dict(schema_version=1,interval_s=.01,asset=dict(path=str(root/'fixture.ora'),sha256='a'*64,width=4096,height=4096,layers=208),display_size=[2558,1200],safety=safety,acceptance={op:dict(min_peak_bytes=0,max_peak_bytes=10**11) for op in ('krita','xz','table','array_processing')},
+    return dict(schema_version=1,interval_s=.01,asset=dict(path=str(root/'fixture.ora'),sha256='a'*64,width=4096,height=4096,layers=208),display_size=[2558,1200],safety=safety,acceptance={op:dict(min_peak_bytes=0,max_peak_bytes=10**11) for op in ('krita',)},
                 forbidden_processes=['krita','memshiftd','xz'],forbidden_units=['memshift','freezer'],forbidden_sockets=['/tmp/memshift-test-only-never.sock'])
 
 
@@ -226,11 +226,8 @@ class RepositoryLayoutTests(unittest.TestCase):
     def test_main_layout_paths_and_source_identity(self):
         from oomlab_krita_collect.common import source_identity
         self.assertEqual(GUI,ROOT/'前台操作/前台操作自动化脚本采集')
-        self.assertEqual(BACKGROUND,ROOT/'后台操作')
         for path in (GUI/'scripts/krita_auto.py', GUI/'scripts/pick_coords.py',
-                     GUI/'scripts/krita_accessibility.py',
-                     BACKGROUND/'oomlab/workloads.py',
-                     BACKGROUND/'configs/profiles.json'):
+                     GUI/'scripts/krita_accessibility.py'):
             self.assertTrue(path.is_file(),str(path))
         identity=source_identity()
         branch = subprocess.run(

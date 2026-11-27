@@ -1,8 +1,10 @@
 """Post-run verification and figures, outside the timed workload interval."""
 import csv,hashlib,json,sys,time
 from pathlib import Path
-root=Path(sys.argv[1]);h=Path.home();s=json.loads((root/'summary.json').read_text());provenance=json.loads((root/'input_provenance.json').read_text())
-sys.path.insert(0,str(h/'bg'));from oomlab.workloads import verify
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'基线并发'))
+from common.shaped_scene import reference_unchanged, verify as verify_shaped
+
+root=Path(sys.argv[1]);s=json.loads((root/'summary.json').read_text());provenance=json.loads((root/'input_provenance.json').read_text())
 def sha(p):
     d=hashlib.sha256()
     with Path(p).open('rb') as f:
@@ -10,19 +12,12 @@ def sha(p):
     return d.hexdigest()
 verification={};unchanged={}
 for op,v in provenance.items():
-    if v.get('workload_kind')=='shaped':
-        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'冻结并发'))
-        from shaped_scene import reference_unchanged, verify as verify_shaped
-        try:
-            unchanged[op]=reference_unchanged(v)
-            verification[op]=verify_shaped(root/op,v) if s['tasks'].get(op,{}).get('returncode')==0 else dict(ok=False,reason='task did not complete')
-        except (OSError,ValueError) as error:
-            unchanged.setdefault(op,False)
-            verification[op]=dict(ok=False,error=str(error))
-        continue
-    unchanged[op]=sha(Path(v['path'])/v['manifest']['file'])==v['input_sha256']
-    try:verification[op]=verify(v['path'],root/op) if s['tasks'].get(op,{}).get('returncode')==0 else dict(ok=False,reason='task did not complete')
-    except Exception as e:verification[op]=dict(ok=False,error=repr(e))
+    try:
+        unchanged[op]=reference_unchanged(v)
+        verification[op]=verify_shaped(root/op,v) if s['tasks'].get(op,{}).get('returncode')==0 else dict(ok=False,reason='task did not complete')
+    except (OSError,ValueError) as error:
+        unchanged.setdefault(op,False)
+        verification[op]=dict(ok=False,error=str(error))
 assets=json.loads((root/'foreground_assets.json').read_text())
 config=json.loads((root/'foreground_config.json').read_text())
 contract=assets['script_contract'];prepared=contract.get('prepared_document')
@@ -100,11 +95,6 @@ for i,(op,r) in enumerate(tasks.items()):
     a=(r['start_ns']-t0)/1e9;b=(r['empty_confirmed_ns']-t0)/1e9
     for ax in axs:ax.axvline(a,color='gray',ls=':',lw=.7)
     if b-a>100:axs[0].text((a+b)/2,axs[0].get_ylim()[1]*.94,op,ha='center',fontsize=9)
-if 'xz' in tasks and 'table' in tasks and 'array' in tasks:
-    a=(tasks['table']['start_ns']-t0)/1e9
-    axs[0].annotate('Table -> Array\n(final %.1f s)'%(tasks['table']['duration_s']+tasks['array']['duration_s']),
-        xy=(a,.91),xycoords=('data','axes fraction'),xytext=(a-210,.67),textcoords=('data','axes fraction'),
-        ha='center',fontsize=9,arrowprops=dict(arrowstyle='->',color='gray',lw=.8))
 for ax in axs:ax.legend(fontsize=9);ax.set_ylabel('GiB');ax.grid(alpha=.2)
 axs[0].set_title('Serial test: '+' -> '.join(s['order'])+' | success: '+str(success));axs[1].set_xlabel('Seconds from first workload launch')
 fig.tight_layout();fig.savefig(root/'serial_memory.png',dpi=160);plt.close(fig)

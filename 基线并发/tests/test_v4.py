@@ -11,7 +11,8 @@ from unittest import mock
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'基线并发'))
-from common.timeline import Timeline,load_plan,wait_until_ns
+from common.timeline import Timeline,wait_until_ns
+from common.shaped_scene import load_offsets
 from common.monitor import MemoryMonitor,meminfo,process_memory
 from common.cgroup_manager import CgroupManager
 
@@ -24,11 +25,11 @@ class TimelineTests(unittest.TestCase):
         self.assertTrue(all(a>=p for a,p in zip(actual,planned)))
         stop=threading.Event();stop.set();self.assertFalse(wait_until_ns(time.monotonic_ns()+1_000_000_000,stop))
 
-    def test_bad_duplicate_operation_is_rejected(self):
-        plan=load_plan(ROOT/'基线并发/baseline_timeline_plan.json');plan['schedule'][1]['operation']='array'
+    def test_incomplete_current_scene_offsets_are_rejected(self):
+        plan={'foreground_krita':0,'array':64,'raster':72}
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'bad.json';p.write_text(json.dumps(plan))
-            with self.assertRaises(ValueError):load_plan(p)
+            with self.assertRaises(ValueError):load_offsets(p)
 
 
 class AccountingTests(unittest.TestCase):
@@ -43,7 +44,7 @@ class AccountingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p=self.fixture(Path(d)/'proc' if False else d,1000000);out=p/'out';out.mkdir();log=Timeline(out,'test')
             log.homepage_ready(0,method='unit fixture')
-            collector=MemoryMonitor(out,log,{'xz':{'cgroup_path':str(p/'missing'),'pid':None}},proc=p);collector.sample();stats=collector.stop();log.close()
+            collector=MemoryMonitor(out,log,{'raster':{'cgroup_path':str(p/'missing'),'pid':None}},proc=p);collector.sample();stats=collector.stop();log.close()
             self.assertEqual(stats['samples'],1);self.assertLessEqual(stats['system_resident_allocated_peak_bytes'],meminfo(p/'meminfo')['MemTotal'])
             with (out/'task_memory.csv').open() as h:row=next(csv.DictReader(h))
             self.assertEqual(row['memory_current_bytes'],'');self.assertEqual(row['sample_status'],'cgroup_unreadable')
@@ -73,11 +74,11 @@ class AccountingTests(unittest.TestCase):
 
 
 class FreezerContractTests(unittest.TestCase):
-    def manager_fixture(self,d):
-        mount=Path(d);parent=mount/'delegated';parent.mkdir();cm=CgroupManager(parent,'oomlab_test',mount=mount);group=cm.root/'xz';group.mkdir();(group/'cgroup.freeze').write_text('0');(group/'cgroup.events').write_text('populated 1\nfrozen 0\n');cm.groups['xz']=(group,group.stat().st_ino);return cm,group
+    def manager_fixture(self,d,operation='raster'):
+        mount=Path(d);parent=mount/'delegated';parent.mkdir();cm=CgroupManager(parent,'oomlab_test',mount=mount);group=cm.root/operation;group.mkdir();(group/'cgroup.freeze').write_text('0');(group/'cgroup.events').write_text('populated 1\nfrozen 0\n');cm.groups[operation]=(group,group.stat().st_ino);return cm,group
     def test_shaped_raster_can_create_an_owned_group(self):
         with tempfile.TemporaryDirectory() as d:
-            cm,_=self.manager_fixture(d)
+            cm,_=self.manager_fixture(d,operation='array')
             for filename in ('cgroup.subtree_control','cgroup.controllers'):
                 (cm.root/filename).write_text('memory cpu io\n')
             mkdir=Path.mkdir
@@ -94,17 +95,17 @@ class FreezerContractTests(unittest.TestCase):
     def test_freeze_requires_observed_confirmation(self):
         with tempfile.TemporaryDirectory() as d:
             cm,g=self.manager_fixture(d)
-            with self.assertRaises(TimeoutError):cm.set_frozen('xz',True,timeout=.02)
+            with self.assertRaises(TimeoutError):cm.set_frozen('raster',True,timeout=.02)
             def confirm():time.sleep(.03);(g/'cgroup.events').write_text('populated 1\nfrozen 1\n')
-            thread=threading.Thread(target=confirm);thread.start();r=cm.set_frozen('xz',True,timeout=.2);thread.join();self.assertTrue(r['frozen']);self.assertGreaterEqual(r['confirmed_monotonic_ns'],r['requested_monotonic_ns'])
+            thread=threading.Thread(target=confirm);thread.start();r=cm.set_frozen('raster',True,timeout=.2);thread.join();self.assertTrue(r['frozen']);self.assertGreaterEqual(r['confirmed_monotonic_ns'],r['requested_monotonic_ns'])
     def test_foreground_and_runner_cannot_be_frozen_or_attached(self):
         with tempfile.TemporaryDirectory() as d:
             cm,g=self.manager_fixture(d)
             with self.assertRaises(ValueError):cm.set_frozen('foreground_krita',True)
-            with self.assertRaises(ValueError):cm.attach('xz',os.getpid())
+            with self.assertRaises(ValueError):cm.attach('raster',os.getpid())
     def test_inode_replacement_invalidates_ownership(self):
         with tempfile.TemporaryDirectory() as d:
             cm,g=self.manager_fixture(d);old=g.with_name('old');g.rename(old);g.mkdir()
-            with self.assertRaises(RuntimeError):cm.checked('xz')
+            with self.assertRaises(RuntimeError):cm.checked('raster')
 
 

@@ -1,5 +1,7 @@
 # AT-SPI 重复 Application 修复与共享文件夹部署
 
+本文保留早期单层文档与 PNG 导入场景的修复和部署记录。以下 `foreground/krita_gui` 路径对应当时的补丁包。当前三阶段场景的源码与命令见 [前台运行](README.md)，AT-SPI 选择器见 [krita_accessibility.py](scripts/krita_accessibility.py)。
+
 本次只修复当前 Krita AT-SPI 应用选择，不改采集框架和实验设计。真实桌面验证：**NOT_RUN**；实际 Layers 表是否可读：**NOT_RUN / 尚未确认**。没有启动完整 PILOT、45 张 PNG 导入或 1800 秒保持。
 
 ## 问题和修复机制

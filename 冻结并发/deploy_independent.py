@@ -9,13 +9,10 @@ def package():
     files={}
     for folder in ['冻结并发','基线并发/common','串行测试']:
         for p in (ROOT/folder).glob('*.py'):files[str(p.relative_to(ROOT)).replace('\\','/')]=p.read_bytes()
-    for name in ('segmented_policy.json','offline_config.json','raster_priority_config.json',
-                 'priority_freeze_only_config.json'):
-        files['冻结并发/'+name]=(ROOT/'冻结并发'/name).read_bytes()
-    for worker in ('后台操作/栅格频域任务/raster_fft.py',
-                   '后台操作/栅格频域任务/measure_raster.py',
-                   '后台操作/曲线任务/shaped_workload.py'):
-        files[worker]=(ROOT/worker).read_bytes()
+    config = ROOT/'冻结并发/raster_priority_config.json'
+    worker = ROOT/'后台操作/曲线任务/shaped_workload.py'
+    for path in (config, worker):
+        files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
     return files
 
 if __name__=='__main__':

@@ -1,5 +1,5 @@
 """
-OOM 三线实验公共模块
+OOM 四任务实验公共模块
 """
 from .monitor import MemoryMonitor
 from .process_manager import ProcessManager

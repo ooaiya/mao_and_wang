@@ -3,7 +3,7 @@ from pathlib import Path
 from segmented_scheduler import Curve,Forecaster,SegmentPolicy,TaskClock
 
 def config(**changes):
-    c=json.loads(Path(__file__).with_name('segmented_policy.json').read_text())
+    c=json.loads(Path(__file__).with_name('test_segmented_config.json').read_text())
     c.update(foreground_jitter_s=0,background_jitter_s=0,growth_uncertainty_bytes=0,growth_multiplier=1,
              resume_headroom_bytes=0,minimum_frozen_s=0,resume_stable_s=0,level_tolerance_bytes=1000)
     c.update(changes);return c
@@ -83,69 +83,69 @@ class ClockTests(unittest.TestCase):
 
 class AdmissionTests(unittest.TestCase):
     def make(self,c=None):
-        models={'foreground_krita':model(list(range(20,41))), 'xz':model(list(range(101))),
+        models={'foreground_krita':model(list(range(20,41))), 'raster':model(list(range(101))),
                 'table':model([0]*101),'array':model([0]*101)}
         return SegmentPolicy(models,c or config(),3)
     def test_future_deficit_freezes_and_holds_without_claiming_emergency(self):
         p=self.make();c=TaskClock(state='RUNNING',since=90,ever_started=True)
-        d=p.decide(100,10,8,{'foreground_krita':30,'xz':10},{'xz':c})
+        d=p.decide(100,10,8,{'foreground_krita':30,'raster':10},{'raster':c})
         self.assertTrue(d.parking_deficit);self.assertTrue(d.retention_hold)
-        self.assertFalse(d.emergency_deficit);self.assertEqual(d.freeze,['xz'])
+        self.assertFalse(d.emergency_deficit);self.assertEqual(d.freeze,['raster'])
         self.assertEqual(d.leases,{});self.assertEqual(d.resume,[])
     def test_hold_never_reopens_on_prediction_recovery(self):
         p=self.make();c=TaskClock(state='RUNNING',since=90,ever_started=True)
-        p.decide(100,10,8,{'foreground_krita':30,'xz':10},{'xz':c});c.frozen(100)
-        d=p.decide(110,10,1000,{'foreground_krita':30,'xz':10},{'xz':c})
+        p.decide(100,10,8,{'foreground_krita':30,'raster':10},{'raster':c});c.frozen(100)
+        d=p.decide(110,10,1000,{'foreground_krita':30,'raster':10},{'raster':c})
         self.assertTrue(d.retention_hold);self.assertFalse(d.parking_deficit);self.assertEqual(d.resume,[])
     def test_normal_foreground_exit_reopens_held_background(self):
         p=self.make();c=TaskClock(state='RUNNING',since=90,ever_started=True)
-        p.decide(100,10,8,{'foreground_krita':30,'xz':10},{'xz':c});c.frozen(100)
-        d=p.decide(110,10,1000,{'foreground_krita':0,'xz':10},{'xz':c},foreground_done=True)
-        self.assertFalse(d.retention_hold);self.assertFalse(d.emergency_deficit);self.assertEqual(d.resume,['xz'])
+        p.decide(100,10,8,{'foreground_krita':30,'raster':10},{'raster':c});c.frozen(100)
+        d=p.decide(110,10,1000,{'foreground_krita':0,'raster':10},{'raster':c},foreground_done=True)
+        self.assertFalse(d.retention_hold);self.assertFalse(d.emergency_deficit);self.assertEqual(d.resume,['raster'])
     def test_live_reserve_breach_is_emergency_even_with_frozen_background(self):
         p=self.make();c=TaskClock(ever_started=True)
-        d=p.decide(100,10,2,{'foreground_krita':30,'xz':10},{'xz':c})
+        d=p.decide(100,10,2,{'foreground_krita':30,'raster':10},{'raster':c})
         self.assertTrue(d.emergency_deficit);self.assertEqual(d.resume,[])
         self.assertEqual(d.evidence['live_reserve_guard']['reserve_bytes'],3)
     def test_live_guard_reserves_foreground_reaction_growth(self):
         p=self.make();c=TaskClock(ever_started=True)
-        p.observe(99,{'foreground_krita':20,'xz':10});p.observe(100,{'foreground_krita':30,'xz':10})
-        d=p.decide(100,10,35,{'foreground_krita':30,'xz':10},{'xz':c})
+        p.observe(99,{'foreground_krita':20,'raster':10});p.observe(100,{'foreground_krita':30,'raster':10})
+        d=p.decide(100,10,35,{'foreground_krita':30,'raster':10},{'raster':c})
         self.assertTrue(d.emergency_deficit)
         self.assertGreater(d.evidence['live_reserve_guard']['required_bytes'],35)
     def test_can_run_piece_when_whole_background_peak_would_not_fit(self):
-        p=self.make();clocks={'xz':TaskClock(frozen_since=-100)}
-        d=p.decide(100,10,30,{'foreground_krita':30,'xz':0},clocks)
-        self.assertEqual(d.resume,['xz']);self.assertLess(d.evidence['xz']['parking_required_bytes'],100)
+        p=self.make();clocks={'raster':TaskClock(frozen_since=-100)}
+        d=p.decide(100,10,30,{'foreground_krita':30,'raster':0},clocks)
+        self.assertEqual(d.resume,['raster']);self.assertLess(d.evidence['raster']['parking_required_bytes'],100)
     def test_remaining_front_peak_limits_retained_allocation(self):
-        p=self.make();d=p.decide(100,0,10,{'foreground_krita':20,'xz':0},{'xz':TaskClock(frozen_since=-100)})
+        p=self.make();d=p.decide(100,0,10,{'foreground_krita':20,'raster':0},{'raster':TaskClock(frozen_since=-100)})
         self.assertEqual(d.resume,[]);self.assertTrue(d.parking_deficit)
     def test_freezing_does_not_add_retained_pages_back_to_available(self):
         p=self.make();c=TaskClock(state='RUNNING',since=90,ever_started=True)
-        running=p.decide(100,10,8,{'foreground_krita':30,'xz':10},{'xz':c})
-        self.assertEqual(running.freeze,['xz'])
+        running=p.decide(100,10,8,{'foreground_krita':30,'raster':10},{'raster':c})
+        self.assertEqual(running.freeze,['raster'])
         c.frozen(100)
-        parked=p.decide(101,11,8,{'foreground_krita':31,'xz':10},{'xz':c})
+        parked=p.decide(101,11,8,{'foreground_krita':31,'raster':10},{'raster':c})
         self.assertEqual(parked.resume,[])
     def test_short_tasks_wait_for_foreground_done_by_role(self):
         p=self.make();c={'table':TaskClock(frozen_since=-100)}
         self.assertEqual(p.decide(100,10,1000,{'foreground_krita':30,'table':0},c).resume,[])
         self.assertEqual(p.decide(100,10,1000,{'foreground_krita':30,'table':0},c,True).resume,['table'])
     def test_generic_early_role_can_be_configured(self):
-        p=self.make(config(early_backgrounds=['table'],hold_until_foreground_done=['xz','array']));c={'table':TaskClock(frozen_since=-100)}
+        p=self.make(config(early_backgrounds=['table'],hold_until_foreground_done=['raster','array']));c={'table':TaskClock(frozen_since=-100)}
         self.assertEqual(p.decide(100,10,1000,{'foreground_krita':30,'table':0},c).resume,['table'])
     def test_running_task_is_paused_when_next_piece_unsafe(self):
         p=self.make();c=TaskClock(state='RUNNING',since=90,ever_started=True)
-        d=p.decide(100,10,14,{'foreground_krita':30,'xz':10},{'xz':c})
-        self.assertEqual(d.freeze,['xz'])
+        d=p.decide(100,10,14,{'foreground_krita':30,'raster':10},{'raster':c})
+        self.assertEqual(d.freeze,['raster'])
     def test_mismatch_denies_admission_while_foreground_active(self):
-        p=self.make(config(level_tolerance_bytes=0,level_tolerance_fraction=0));c={'xz':TaskClock(frozen_since=-100)}
-        d=p.decide(100,10,1000,{'foreground_krita':999,'xz':0},c)
+        p=self.make(config(level_tolerance_bytes=0,level_tolerance_fraction=0));c={'raster':TaskClock(frozen_since=-100)}
+        d=p.decide(100,10,1000,{'foreground_krita':999,'raster':0},c)
         self.assertEqual(d.resume,[])
     def test_background_overrun_can_finish_after_foreground_exits(self):
         p=self.make();c=TaskClock(state='RUNNING',since=0,ever_started=True)
-        d=p.decide(200,200,1000,{'foreground_krita':0,'xz':110},{'xz':c},True)
-        self.assertEqual(d.freeze,[]);self.assertIn('xz',d.leases)
+        d=p.decide(200,200,1000,{'foreground_krita':0,'raster':110},{'raster':c},True)
+        self.assertEqual(d.freeze,[]);self.assertIn('raster',d.leases)
     def test_collective_growth_is_not_approved_independently(self):
         m={'foreground_krita':model([10]*100),'a':model(list(range(101))),'b':model(list(range(101)))}
         p=SegmentPolicy(m,config(early_backgrounds=['a','b'],hold_until_foreground_done=[]),3)

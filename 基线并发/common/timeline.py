@@ -66,18 +66,3 @@ class Timeline:
                     w.writeheader()
                     w.writerows(selection)
             self.stream.close()
-
-
-def load_plan(path):
-    plan = json.loads(Path(path).read_text())
-    schedule = plan['schedule']
-    if sorted(x['operation'] for x in schedule) != ['array', 'foreground_krita', 'table', 'xz']:
-        raise ValueError('timeline must contain each of the four operations once')
-    offsets = [x['start_offset_s'] for x in schedule]
-    if any(type(x) not in (int, float) or x < 0 for x in offsets) or min(offsets) != 0:
-        raise ValueError('invalid start offsets')
-    if next(x for x in schedule if x['operation']=='foreground_krita')['start_offset_s'] != 0:
-        raise ValueError('homepage_ready is the foreground reference at zero')
-    if plan['T0_event'] != 'homepage_ready':
-        raise ValueError('this runner requires the V4 homepage_ready time origin')
-    return plan

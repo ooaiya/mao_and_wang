@@ -1,6 +1,8 @@
 # 环境审计
 
-当前目标环境（2026-11-05 用户确认）：**Ubuntu 22.04.5 LTS / Linux 6.17.13**；实际 release 为 `6.17.13-oomlab`，Python 3.10.12、RAM 16GB、Swap 2GiB、cgroup v2。`check-env` 仅精确匹配内核基础版本，保留完整实际 release；Ubuntu VERSION_ID=22.04 的检查逻辑不变。下文云端结果与用户提供的内核证据来源分别保留。
+本文记录 2026-11-05 的环境验收，包含当时的 `check-env` 检查器和云容器结果。当前四任务的部署与入口见 [复现实验](../../复现实验.md)。
+
+当时的目标环境为 **Ubuntu 22.04.5 LTS / Linux 6.17.13**。实际 release 为 `6.17.13-oomlab`，Python 3.10.12、RAM 16GB、Swap 2 GiB，使用 cgroup v2。当时的 `check-env` 校验内核基础版本和 Ubuntu `VERSION_ID=22.04`，并记录完整的 release。
 
 本次代码构建/主机测试实际执行在 Debian 13 云容器，Linux 6.18.57，MemTotal 10,452,459,520 Bytes，PID1 为 tail，cgroup v2 挂载只读。详情见 `environment_cloud.json`。它不是目标 Ubuntu VM；云容器的 Freezer probe 为 BLOCKED，不能据此否定 VM 的 Freezer 能力。
 

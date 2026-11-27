@@ -21,6 +21,6 @@
   "resume_headroom_bytes": 67108864,
   "resume_stable_s": 0.5,
   "minimum_frozen_s": 0.5,
-  "early_backgrounds": ["xz"],
+  "early_backgrounds": ["raster"],
   "hold_until_foreground_done": ["table", "array"]
 }

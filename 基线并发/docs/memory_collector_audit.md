@@ -1,10 +1,12 @@
 # 16.258 GB 与采集器审计
 
+本文记录旧采集器的计量口径和当时的排查结论。当前四任务的整机与 cgroup 采样入口见 [sampling.py](../common/sampling.py)，结果复核见 [复现实验](../../复现实验.md)。
+
 ## 已从旧源码确认的问题
 
 旧 `common/monitor.py` 读取 `/proc/<pid>/status`，将 VmRSS 写成 `<operation>_memory_current`，将 VmPeak 写成 `<operation>_memory_peak`。前者是单进程 RSS，后者是虚拟地址空间高水位，均不是同名 cgroup 字段；还会漏掉子进程和文件缓存。旧低内存次数按低样本数计算，旧报告把 PSI full 比例作为卡顿表现，不能代替 GUI 响应延迟。
 
-旧整机峰值报告的代码路径为 `(system_MemTotal - system_MemAvailable) / 1e9`。当前这份采集器没有读取 SCSI/磁盘设备指标来生成该字段。因此不能把 SCSI 当成已证明根因。
+旧整机峰值报告的计算为 `(system_MemTotal - system_MemAvailable) / 1e9`。当时核查的该字段仅使用这两项整机内存指标。
 
 ## 16.258 的精确来源仍待原始行
 
@@ -12,7 +14,7 @@
 
 用户尚未提供产生该数值的原始并发采样/报告，已安排后补。当前只能确认上述源码口径错误与单位误读的可能性，不能虚构旧行或宣称找到唯一数值根因。原始16.258问题的精确追溯状态为 WAITING_ORIGINAL_RUN；不通过截断为16或编辑报告解决。
 
-## 新实现
+## 当时的修订口径
 
 - 整机：/proc/meminfo 的实际 MemTotal，驻留页分配值 MemTotal−MemFree（含缓存），以及独立的压力代理 MemTotal−MemAvailable；越界数据标记无效，不强行裁剪。
 - 任务：稳定且独立的任务根 cgroup 的 memory.current/peak/stat/events/swap。memshiftd 自有冻结子组仍在任务根下，采集只读父任务聚合一次，不再累计其子组。
